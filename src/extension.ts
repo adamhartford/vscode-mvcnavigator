@@ -1628,12 +1628,16 @@ export function activate(context: vscode.ExtensionContext) {
     const disposableActionCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToAction', async (filePath: string, lineNumber?: number) => {
         try {
             const actionUri = vscode.Uri.file(filePath);
-            const doc = await vscode.window.showTextDocument(actionUri);
+            const document = await vscode.workspace.openTextDocument(actionUri);
             
             if (lineNumber) {
                 const position = new vscode.Position(lineNumber - 1, 0);
-                doc.selection = new vscode.Selection(position, position);
-                doc.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                const range = new vscode.Range(position, position);
+                await vscode.window.showTextDocument(document, {
+                    selection: range
+                });
+            } else {
+                await vscode.window.showTextDocument(document);
             }
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to navigate to action: ${error}`);
@@ -1644,22 +1648,28 @@ export function activate(context: vscode.ExtensionContext) {
     const disposableControllerCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToController', async (filePath: string) => {
         try {
             const controllerUri = vscode.Uri.file(filePath);
-            const doc = await vscode.window.showTextDocument(controllerUri);
             
-            // Navigate to the class definition
-            const content = doc.document.getText();
+            // First, read the file content to find the class definition line
+            const document = await vscode.workspace.openTextDocument(controllerUri);
+            const content = document.getText();
             const lines = content.split('\n');
             
             // Look for class declaration
             const classRegex = /^\s*(?:public|internal|private|protected)?\s*(?:abstract|sealed)?\s*class\s+\w+Controller\s*:/;
+            let classPosition = new vscode.Position(0, 0); // Default to top of file
+            
             for (let i = 0; i < lines.length; i++) {
                 if (classRegex.test(lines[i])) {
-                    const position = new vscode.Position(i, 0);
-                    doc.selection = new vscode.Selection(position, position);
-                    doc.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                    classPosition = new vscode.Position(i, 0);
                     break;
                 }
             }
+            
+            // Open the document with the cursor positioned at the class definition
+            const range = new vscode.Range(classPosition, classPosition);
+            await vscode.window.showTextDocument(document, {
+                selection: range
+            });
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to navigate to controller: ${error}`);
         }
@@ -1833,11 +1843,15 @@ export function activate(context: vscode.ExtensionContext) {
             
             if (actionPath) {
                 const actionUri = vscode.Uri.file(actionPath.filePath);
-                const doc = await vscode.window.showTextDocument(actionUri);
+                const documentToOpen = await vscode.workspace.openTextDocument(actionUri);
                 if (actionPath.lineNumber) {
                     const position = new vscode.Position(actionPath.lineNumber - 1, 0);
-                    doc.selection = new vscode.Selection(position, position);
-                    doc.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                    const range = new vscode.Range(position, position);
+                    await vscode.window.showTextDocument(documentToOpen, {
+                        selection: range
+                    });
+                } else {
+                    await vscode.window.showTextDocument(documentToOpen);
                 }
             } else {
                 vscode.window.showWarningMessage(`Could not find action method: ${actionName}`);
@@ -1855,11 +1869,15 @@ export function activate(context: vscode.ExtensionContext) {
             
             if (actionPath) {
                 const actionUri = vscode.Uri.file(actionPath.filePath);
-                const doc = await vscode.window.showTextDocument(actionUri);
+                const documentToOpen = await vscode.workspace.openTextDocument(actionUri);
                 if (actionPath.lineNumber) {
                     const position = new vscode.Position(actionPath.lineNumber - 1, 0);
-                    doc.selection = new vscode.Selection(position, position);
-                    doc.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                    const range = new vscode.Range(position, position);
+                    await vscode.window.showTextDocument(documentToOpen, {
+                        selection: range
+                    });
+                } else {
+                    await vscode.window.showTextDocument(documentToOpen);
                 }
             } else {
                 vscode.window.showWarningMessage(`Could not find action method: ${actionName} in ${controllerName}Controller`);
@@ -1876,11 +1894,15 @@ export function activate(context: vscode.ExtensionContext) {
             
             if (actionPath) {
                 const actionUri = vscode.Uri.file(actionPath.filePath);
-                const doc = await vscode.window.showTextDocument(actionUri);
+                const documentToOpen = await vscode.workspace.openTextDocument(actionUri);
                 if (actionPath.lineNumber) {
                     const position = new vscode.Position(actionPath.lineNumber - 1, 0);
-                    doc.selection = new vscode.Selection(position, position);
-                    doc.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                    const range = new vscode.Range(position, position);
+                    await vscode.window.showTextDocument(documentToOpen, {
+                        selection: range
+                    });
+                } else {
+                    await vscode.window.showTextDocument(documentToOpen);
                 }
             } else {
                 vscode.window.showWarningMessage(`Could not find action method: ${actionName}`);
