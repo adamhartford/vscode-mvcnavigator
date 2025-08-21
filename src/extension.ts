@@ -544,7 +544,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
             if (actionPath) {
                 // Create command URI for precise action navigation
-                const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                 const actionLink = new vscode.DocumentLink(actionRange, commandUri);
                 actionLink.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                 links.push(actionLink);
@@ -582,7 +582,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
             if (actionPath) {
                 // Create command URI for precise action navigation
-                const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                 const actionLink = new vscode.DocumentLink(actionRange, commandUri);
                 actionLink.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                 links.push(actionLink);
@@ -626,7 +626,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -761,8 +761,8 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 const actionPath = this.findActionMethodFromView(document.uri, actionName);
                 
                 if (actionPath) {
-                    // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    // Create command URI using helper method
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -794,7 +794,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -811,7 +811,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 if (controllerPath) {
                     const classLine = this.findControllerClassLine(controllerPath, controllerName);
                     if (classLine) {
-                        const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([controllerPath, classLine]))}`);
+                        const commandUri = this.createActionCommandUri(controllerPath, classLine);
                         const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
                         links.push(controllerLink);
@@ -850,7 +850,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -867,7 +867,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 if (controllerPath) {
                     const classLine = this.findControllerClassLine(controllerPath, controllerName);
                     if (classLine) {
-                        const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([controllerPath, classLine]))}`);
+                        const commandUri = this.createActionCommandUri(controllerPath, classLine);
                         const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
                         links.push(controllerLink);
@@ -905,7 +905,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -941,7 +941,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -977,7 +977,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -1033,7 +1033,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -1088,7 +1088,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -1120,7 +1120,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -1152,7 +1152,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -1204,7 +1204,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -1255,7 +1255,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
