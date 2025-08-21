@@ -45,5 +45,20 @@ namespace SampleMvcApp.Controllers
         {
             return View();
         }
+
+        public IActionResult GetUserPartial()
+        {
+            return PartialView("_UserInfo");
+        }
+
+        public IActionResult GetNavPartial()
+        {
+            return PartialView();
+        }
+
+        public IActionResult LoadComments()
+        {
+            return PartialView("_CommentsList");
+        }
     }
 }

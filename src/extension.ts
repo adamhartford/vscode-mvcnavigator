@@ -8,6 +8,10 @@ import * as fs from 'fs';
 const VIEW_CALL_WITH_NAME_REGEX = /\bView\s*\(\s*["']([^"']+)["']\s*\)/g;
 const VIEW_CALL_PARAMETERLESS_REGEX = /\bView\s*\(\s*\)/g;
 
+// Regular expressions to match PartialView() calls
+const PARTIAL_VIEW_CALL_WITH_NAME_REGEX = /\bPartialView\s*\(\s*["']([^"']+)["']\s*\)/g;
+const PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX = /\bPartialView\s*\(\s*\)/g;
+
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
@@ -25,6 +29,12 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         
         // Handle parameterless View() calls
         this.processParameterlessViewCalls(document, text, links);
+
+        // Handle PartialView("PartialName") calls
+        this.processPartialViewCallsWithName(document, text, links);
+        
+        // Handle parameterless PartialView() calls
+        this.processParameterlessPartialViewCalls(document, text, links);
 
         return links;
     }
@@ -63,6 +73,50 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 const range = new vscode.Range(startPos, endPos);
                 const viewPath = this.findViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${actionName}.cshtml`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processPartialViewCallsWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        PARTIAL_VIEW_CALL_WITH_NAME_REGEX.lastIndex = 0;
+
+        while ((match = PARTIAL_VIEW_CALL_WITH_NAME_REGEX.exec(text)) !== null) {
+            const partialViewName = match[1];
+            const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
+            const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
+            
+            const range = new vscode.Range(startPos, endPos);
+            const viewPath = this.findPartialViewFile(document.uri, partialViewName);
+            
+            if (viewPath) {
+                const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                link.tooltip = `Navigate to ${partialViewName}.cshtml`;
+                links.push(link);
+            }
+        }
+    }
+
+    private processParameterlessPartialViewCalls(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX.lastIndex = 0;
+
+        while ((match = PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX.exec(text)) !== null) {
+            const actionName = this.getActionNameFromPosition(document, match.index);
+            if (actionName) {
+                // Find the "PartialView" text within the match
+                const partialViewWordIndex = match[0].indexOf('PartialView');
+                const startPos = document.positionAt(match.index + partialViewWordIndex);
+                const endPos = document.positionAt(match.index + partialViewWordIndex + 11); // "PartialView" is 11 characters
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findPartialViewFile(document.uri, actionName);
                 
                 if (viewPath) {
                     const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
@@ -163,6 +217,88 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
         return null;
     }
+
+    private findPartialViewFile(controllerUri: vscode.Uri, partialViewName: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(controllerUri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        // Extract controller name from file path
+        const controllerFileName = path.basename(controllerUri.fsPath, '.cs');
+        let controllerName = controllerFileName;
+        
+        // Remove "Controller" suffix if present
+        if (controllerName.endsWith('Controller')) {
+            controllerName = controllerName.substring(0, controllerName.length - 'Controller'.length);
+        }
+
+        const workspaceRoot = workspaceFolder.uri.fsPath;
+        
+        // Common MVC partial view folder patterns
+        // Partial views often start with underscore and can be in various locations
+        const possiblePartialViewPaths = [
+            // Controller-specific partials
+            path.join(workspaceRoot, 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'Views', controllerName, `${partialViewName}.razor`),
+            
+            // Shared partials (most common for partial views)
+            path.join(workspaceRoot, 'Views', 'Shared', `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'Views', 'Shared', `${partialViewName}.razor`),
+            
+            // Areas structure
+            path.join(workspaceRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.razor`),
+            path.join(workspaceRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.razor`),
+            
+            // Different project structures
+            path.join(workspaceRoot, 'src', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'src', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'Web', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'Web', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            
+            // wwwroot structure
+            path.join(workspaceRoot, 'wwwroot', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(workspaceRoot, 'wwwroot', 'Views', 'Shared', `${partialViewName}.cshtml`),
+        ];
+
+        // Check each possible path
+        for (const viewPath of possiblePartialViewPaths) {
+            if (viewPath.includes('*')) {
+                // Handle Areas wildcard
+                const basePath = path.dirname(viewPath);
+                const pattern = path.basename(viewPath);
+                try {
+                    const areasPath = path.dirname(basePath);
+                    if (fs.existsSync(areasPath)) {
+                        const areas = fs.readdirSync(areasPath, { withFileTypes: true })
+                            .filter(dirent => dirent.isDirectory())
+                            .map(dirent => dirent.name);
+                        
+                        for (const area of areas) {
+                            const areaViewPath = path.join(areasPath, area, 'Views', controllerName, pattern);
+                            if (fs.existsSync(areaViewPath)) {
+                                return areaViewPath;
+                            }
+                            
+                            // Also check Shared folder in areas
+                            const areaSharedViewPath = path.join(areasPath, area, 'Views', 'Shared', pattern);
+                            if (fs.existsSync(areaSharedViewPath)) {
+                                return areaSharedViewPath;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    // Continue to next path
+                }
+            } else if (fs.existsSync(viewPath)) {
+                return viewPath;
+            }
+        }
+
+        return null;
+    }
 }
 
 // This method is called when your extension is activated
@@ -205,6 +341,22 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
+        // Look for PartialView() call with explicit name on current line
+        const namedPartialViewMatch = lineText.match(/\bPartialView\s*\(\s*["']([^"']+)["']\s*\)/);
+        if (namedPartialViewMatch) {
+            const partialViewName = namedPartialViewMatch[1];
+            const linkProvider = new MvcDocumentLinkProvider();
+            const viewPath = (linkProvider as any).findPartialViewFile(document.uri, partialViewName);
+            
+            if (viewPath) {
+                const viewUri = vscode.Uri.file(viewPath);
+                await vscode.window.showTextDocument(viewUri);
+            } else {
+                vscode.window.showWarningMessage(`Could not find partial view file for: ${partialViewName}`);
+            }
+            return;
+        }
+
         // Look for parameterless View() call on current line
         const parameterlessViewMatch = lineText.match(/\bView\s*\(\s*\)/);
         if (parameterlessViewMatch) {
@@ -226,7 +378,28 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        vscode.window.showWarningMessage('No View() call found on current line.');
+        // Look for parameterless PartialView() call on current line
+        const parameterlessPartialViewMatch = lineText.match(/\bPartialView\s*\(\s*\)/);
+        if (parameterlessPartialViewMatch) {
+            const linkProvider = new MvcDocumentLinkProvider();
+            const actionName = (linkProvider as any).getActionNameFromPosition(document, document.offsetAt(position));
+            
+            if (actionName) {
+                const viewPath = (linkProvider as any).findPartialViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const viewUri = vscode.Uri.file(viewPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find partial view file for action: ${actionName}`);
+                }
+            } else {
+                vscode.window.showWarningMessage('Could not determine action name for parameterless PartialView() call.');
+            }
+            return;
+        }
+
+        vscode.window.showWarningMessage('No View() or PartialView() call found on current line.');
     });
 
     context.subscriptions.push(disposableLinkProvider, disposableCommand);
