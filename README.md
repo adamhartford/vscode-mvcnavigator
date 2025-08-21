@@ -1,11 +1,13 @@
 # ASP.NET MVC Navigator
 
-A Visual Studio Code extension that provides intelligent navigation between ASP.NET MVC controllers and views, similar to the functionality found in JetBrains Rider and ReSharper.
+A Visual Studio Code extension that provides intelligent navigation between ASP.NET MVC controllers, views, and actions, similar to the functionality found in JetBrains Rider and ReSharper.
 
 ## Features
 
 - **Ctrl+Click Navigation**: Navigate from controller actions to their corresponding views by Ctrl+clicking on view names in `View()` and `PartialView()` calls
+- **RedirectToAction Navigation**: Navigate to action methods by Ctrl+clicking on action names or controller names in `RedirectToAction()` calls
 - **Underlined View Names**: View names in `View("ViewName")` and `PartialView("_PartialName")` calls are automatically underlined and made clickable
+- **Underlined Action/Controller Names**: Action names and controller names in `RedirectToAction()` calls are automatically underlined and made clickable
 - **Parameterless Call Support**: Both `View()` and `PartialView()` calls without parameters automatically resolve to action-named views
 - **Multi-Project Workspace Support**: Automatically detects and handles multiple ASP.NET MVC projects within a single VS Code workspace
 - **Smart Project Root Detection**: Intelligently identifies MVC project boundaries by looking for .csproj files, Views folders, Controllers folders, and other MVC indicators
@@ -21,12 +23,14 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 ## Usage
 
 1. Open any C# controller file in your ASP.NET MVC project
-2. Locate a `View()` or `PartialView()` call with a view name, e.g., `return View("MyView");` or `return PartialView("_MyPartial");`
-3. The view name will be automatically underlined
-4. Ctrl+click on the view name to navigate to the corresponding `.cshtml` or `.razor` file
-5. Alternatively, use the command palette and search for "Navigate to View" when your cursor is on a line with a View() or PartialView() call
+2. Locate a `View()`, `PartialView()`, or `RedirectToAction()` call with names, e.g., `return View("MyView");`, `return PartialView("_MyPartial");`, or `return RedirectToAction("MyAction", "MyController");`
+3. The view name, action name, or controller name will be automatically underlined
+4. Ctrl+click on the name to navigate to the corresponding `.cshtml`/`.razor` file or action method
+5. Alternatively, use the command palette and search for "Navigate to View" when your cursor is on a line with a View(), PartialView(), or RedirectToAction() call
 
-## Supported View() Call Patterns
+## Supported Call Patterns
+
+### View() and PartialView() Patterns
 
 The extension recognizes various patterns of View() and PartialView() calls:
 
@@ -48,6 +52,27 @@ PartialView("_PartialName")            // Navigates to _PartialName.cshtml
 ```
 
 **View() with Model Support**: The extension now supports View() and PartialView() calls that pass model objects or create new instances. These are treated as convention-based calls where the view name matches the action method name.
+
+### RedirectToAction() Patterns
+
+The extension recognizes various patterns of RedirectToAction() calls:
+
+```csharp
+return RedirectToAction("ActionName");           // Navigates to ActionName method in same controller
+return RedirectToAction("ActionName", "ControllerName");  // Navigates to ActionName method in ControllerNameController
+return RedirectToAction("ActionName", "ControllerName", new { id = 1 });  // Both action and controller are clickable
+return RedirectToAction("ActionName", new { id = 1, category = "test" });  // Navigates to ActionName method in same controller
+RedirectToAction("ActionName")                   // Navigates to ActionName method
+RedirectToAction( "ActionName" , "ControllerName" ); // with spaces - Both parts are clickable
+```
+
+**RedirectToAction Navigation Features**:
+- **Action Names**: Ctrl+click on action names to navigate to the corresponding action method
+- **Controller Names**: Ctrl+click on controller names to navigate to the controller file
+- **Same Controller**: When only action name is specified, searches within the current controller
+- **Cross-Controller**: When both action and controller are specified, navigates to the target controller
+- **Route Values Support**: Works with RedirectToAction calls that include route values (anonymous objects)
+- **Precise Navigation**: Navigates directly to the action method line, not just the file
 
 **Parameterless View() Calls**: When you use `return View();` without specifying a view name, the extension automatically determines the view name based on the current action method name, following standard ASP.NET MVC conventions.
 

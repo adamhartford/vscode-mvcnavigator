@@ -60,5 +60,35 @@ namespace SampleMvcApp.Controllers
         {
             return PartialView("_CommentsList");
         }
+
+        public IActionResult RedirectToAbout()
+        {
+            return RedirectToAction("About");
+        }
+
+        public IActionResult RedirectToContact()
+        {
+            return RedirectToAction("Contact");
+        }
+
+        public IActionResult RedirectToDepartmentIndex()
+        {
+            return RedirectToAction("Index", "Department");
+        }
+
+        public IActionResult RedirectToErrorPage()
+        {
+            return RedirectToAction("NotFound", "Error");
+        }
+
+        public IActionResult RedirectWithRouteValues()
+        {
+            return RedirectToAction("Index", new { id = 1, category = "test" });
+        }
+
+        public IActionResult RedirectWithControllerAndRouteValues()
+        {
+            return RedirectToAction("DepartmentDetails", "Department", new { id = 5 });
+        }
     }
 }
