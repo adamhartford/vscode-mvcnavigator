@@ -1,0 +1,28 @@
+@model IEnumerable<DepartmentModel>
+@{
+    ViewData["Title"] = "Department List";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="mb-3">
+    <a asp-action="Create" class="btn btn-primary">Create New Department</a>
+</div>
+
+<div class="row">
+    @foreach(var department in Model)
+    {
+        <div class="col-md-4 mb-3">
+            @Html.Partial("_DepartmentCard", department)
+        </div>
+    }
+</div>
+
+@if(!Model.Any())
+{
+    <div class="alert alert-info">
+        <h4>No departments found</h4>
+        <p>There are currently no departments in the system.</p>
+        <a asp-action="Create" class="btn btn-primary">Create the first department</a>
+    </div>
+}
