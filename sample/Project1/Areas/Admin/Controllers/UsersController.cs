@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Project1.Models;
 
 namespace Project1.Areas.Admin.Controllers
 {
@@ -10,24 +11,39 @@ namespace Project1.Areas.Admin.Controllers
             return View();
         }
 
-        public IActionResult Details()
+        public IActionResult Details(int id = 1)
         {
-            return View("UserDetails");
+            var user = GetUserById(id);
+            return View("UserDetails", user);
         }
 
-        public IActionResult Edit()
+        public IActionResult Edit(int id = 1)
         {
-            return View();
+            var user = GetUserById(id);
+            return View(user);
         }
 
-        public IActionResult GetUserRow()
+        public IActionResult GetUserRow(int id = 1)
         {
-            return PartialView("_UserRow");
+            var user = GetUserById(id);
+            return PartialView("_UserRow", user);
         }
 
-        public IActionResult GetUserForm()
+        public IActionResult GetUserForm(int id = 1)
         {
-            return PartialView();
+            var user = GetUserById(id);
+            return PartialView(user);
+        }
+
+        private UserModel GetUserById(int id)
+        {
+            return new UserModel
+            {
+                Id = id,
+                Name = $"Admin User {id}",
+                Email = $"admin{id}@company.com",
+                Role = "Administrator"
+            };
         }
     }
 }

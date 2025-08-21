@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Project2.Models;
 
 namespace Project2.Controllers
 {
@@ -6,17 +7,36 @@ namespace Project2.Controllers
     {
         public IActionResult List()
         {
-            return View();
+            var products = GetProducts();
+            return View(products);
         }
 
-        public IActionResult Details()
+        public IActionResult Details(int id = 1)
         {
-            return View("ProductDetails");
+            var product = GetProductById(id);
+            return View("ProductDetails", product);
         }
 
-        public IActionResult GetProductCard()
+        public IActionResult GetProductCard(int id = 1)
         {
-            return PartialView("_ProductCard");
+            var product = GetProductById(id);
+            return PartialView("_ProductCard", product);
+        }
+
+        private List<ProductModel> GetProducts()
+        {
+            return new List<ProductModel>
+            {
+                new ProductModel { Id = 1, Name = "Laptop", Description = "High-performance laptop", Price = 999.99m },
+                new ProductModel { Id = 2, Name = "Mouse", Description = "Wireless mouse", Price = 29.99m },
+                new ProductModel { Id = 3, Name = "Keyboard", Description = "Mechanical keyboard", Price = 79.99m }
+            };
+        }
+
+        private ProductModel GetProductById(int id)
+        {
+            var products = GetProducts();
+            return products.FirstOrDefault(p => p.Id == id) ?? products.First();
         }
     }
 }

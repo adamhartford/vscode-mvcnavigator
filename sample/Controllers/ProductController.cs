@@ -11,11 +11,13 @@ namespace SampleMvcApp.Controllers
 
         public IActionResult Edit(int id)
         {
+            var model = GetProductById(id);
             var viewModel = new ProductEditViewModel 
             { 
-                Id = id, 
-                Name = "Sample Product",
-                Description = "Sample Description"
+                Id = model.Id, 
+                Name = model.Name,
+                Description = model.Description,
+                Price = model.Price
             };
             return View("ProductEdit", viewModel);
         }
@@ -52,7 +54,13 @@ namespace SampleMvcApp.Controllers
 
         private ProductModel GetProductById(int id)
         {
-            return new ProductModel { Id = id, Name = $"Product {id}", Description = $"Description for product {id}" };
+            return new ProductModel 
+            { 
+                Id = id, 
+                Name = $"Product {id}", 
+                Description = $"Description for product {id}",
+                Price = 19.99m + id 
+            };
         }
     }
 
@@ -61,12 +69,14 @@ namespace SampleMvcApp.Controllers
         public int Id { get; set; }
         public string Name { get; set; } = "";
         public string Description { get; set; } = "";
+        public decimal Price { get; set; }
     }
 
     public class ProductCreateViewModel
     {
         public string Name { get; set; } = "";
         public string Description { get; set; } = "";
+        public decimal Price { get; set; }
     }
 
     public class ProductFormViewModel
@@ -79,6 +89,7 @@ namespace SampleMvcApp.Controllers
         public int Id { get; set; }
         public string Name { get; set; } = "";
         public string Description { get; set; } = "";
+        public decimal Price { get; set; }
         public DateTime CreatedDate { get; set; } = DateTime.Now;
     }
 }

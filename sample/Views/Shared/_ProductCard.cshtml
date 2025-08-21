@@ -1,0 +1,13 @@
+@model ProductModel
+
+<div class="card product-card">
+    <div class="card-body">
+        <h5 class="card-title">@Model.Name</h5>
+        <p class="card-text text-success">$@Model.Price</p>
+        <p class="card-text">@Model.Description</p>
+        <div class="d-flex justify-content-between">
+            <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-primary btn-sm">View Details</a>
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">Edit</a>
+        </div>
+    </div>
+</div>

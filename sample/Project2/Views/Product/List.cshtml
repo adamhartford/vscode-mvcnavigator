@@ -1,9 +1,22 @@
+@model List<ProductModel>
 @{
     ViewData["Title"] = "Product List";
 }
 <h2>@ViewData["Title"]</h2>
 
-<p>This is the product list page for Project 2.</p>
-<div class="product-grid">
-    <!-- Product items would go here -->
+<div class="row">
+    @foreach(var product in Model)
+    {
+        <div class="col-md-4 mb-3">
+            @await Html.PartialAsync("_ProductCard", product)
+        </div>
+    }
 </div>
+
+@if(!Model.Any())
+{
+    <div class="alert alert-info">
+        <h4>No products found</h4>
+        <p>There are currently no products in the system.</p>
+    </div>
+}
