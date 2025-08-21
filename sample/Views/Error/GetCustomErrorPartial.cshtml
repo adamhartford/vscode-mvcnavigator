@@ -1,0 +1,13 @@
+@model ErrorViewModel
+
+<div class="custom-error-partial">
+    <h5>Custom Error Partial</h5>
+    @if (Model?.ShowRequestId == true)
+    {
+        <p class="text-muted">Custom Request ID: @Model.RequestId</p>
+    }
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-circle"></i>
+        This is a custom error partial view.
+    </div>
+</div>

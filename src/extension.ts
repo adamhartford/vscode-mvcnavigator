@@ -7,10 +7,12 @@ import * as fs from 'fs';
 // Regular expressions to match View() calls
 const VIEW_CALL_WITH_NAME_REGEX = /\bView\s*\(\s*["']([^"']+)["']\s*\)/g;
 const VIEW_CALL_PARAMETERLESS_REGEX = /\bView\s*\(\s*\)/g;
+const VIEW_CALL_WITH_MODEL_REGEX = /\bView\s*\(\s*(?!["'])[^)]+\)/g; // View(model) or View(new Model{...})
 
 // Regular expressions to match PartialView() calls
 const PARTIAL_VIEW_CALL_WITH_NAME_REGEX = /\bPartialView\s*\(\s*["']([^"']+)["']\s*\)/g;
 const PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX = /\bPartialView\s*\(\s*\)/g;
+const PARTIAL_VIEW_CALL_WITH_MODEL_REGEX = /\bPartialView\s*\(\s*(?!["'])[^)]+\)/g; // PartialView(model) or PartialView(new Model{...})
 
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     
@@ -30,11 +32,17 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle parameterless View() calls
         this.processParameterlessViewCalls(document, text, links);
 
+        // Handle View(model) calls (treated as parameterless for view resolution)
+        this.processViewCallsWithModel(document, text, links);
+
         // Handle PartialView("PartialName") calls
         this.processPartialViewCallsWithName(document, text, links);
         
         // Handle parameterless PartialView() calls
         this.processParameterlessPartialViewCalls(document, text, links);
+
+        // Handle PartialView(model) calls (treated as parameterless for view resolution)
+        this.processPartialViewCallsWithModel(document, text, links);
 
         return links;
     }
@@ -121,6 +129,54 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 if (viewPath) {
                     const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
                     link.tooltip = `Navigate to ${actionName}.cshtml`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processViewCallsWithModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        VIEW_CALL_WITH_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = VIEW_CALL_WITH_MODEL_REGEX.exec(text)) !== null) {
+            const actionName = this.getActionNameFromPosition(document, match.index);
+            if (actionName) {
+                // Find the "View" text within the match
+                const viewWordIndex = match[0].indexOf('View');
+                const startPos = document.positionAt(match.index + viewWordIndex);
+                const endPos = document.positionAt(match.index + viewWordIndex + 4); // "View" is 4 characters
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${actionName}.cshtml (View with model)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processPartialViewCallsWithModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        PARTIAL_VIEW_CALL_WITH_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = PARTIAL_VIEW_CALL_WITH_MODEL_REGEX.exec(text)) !== null) {
+            const actionName = this.getActionNameFromPosition(document, match.index);
+            if (actionName) {
+                // Find the "PartialView" text within the match
+                const partialViewWordIndex = match[0].indexOf('PartialView');
+                const startPos = document.positionAt(match.index + partialViewWordIndex);
+                const endPos = document.positionAt(match.index + partialViewWordIndex + 11); // "PartialView" is 11 characters
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findPartialViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${actionName}.cshtml (PartialView with model)`;
                     links.push(link);
                 }
             }
@@ -525,6 +581,48 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             } else {
                 vscode.window.showWarningMessage('Could not determine action name for parameterless PartialView() call.');
+            }
+            return;
+        }
+
+        // Look for View() call with model on current line (e.g., View(new ErrorViewModel {...}))
+        const viewWithModelMatch = lineText.match(/\bView\s*\(\s*(?!["'])[^)]+\)/);
+        if (viewWithModelMatch) {
+            const linkProvider = new MvcDocumentLinkProvider();
+            const actionName = (linkProvider as any).getActionNameFromPosition(document, document.offsetAt(position));
+            
+            if (actionName) {
+                const viewPath = (linkProvider as any).findViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const viewUri = vscode.Uri.file(viewPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find view file for action: ${actionName}`);
+                }
+            } else {
+                vscode.window.showWarningMessage('Could not determine action name for View() call with model.');
+            }
+            return;
+        }
+
+        // Look for PartialView() call with model on current line (e.g., PartialView(new Model {...}))
+        const partialViewWithModelMatch = lineText.match(/\bPartialView\s*\(\s*(?!["'])[^)]+\)/);
+        if (partialViewWithModelMatch) {
+            const linkProvider = new MvcDocumentLinkProvider();
+            const actionName = (linkProvider as any).getActionNameFromPosition(document, document.offsetAt(position));
+            
+            if (actionName) {
+                const viewPath = (linkProvider as any).findPartialViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const viewUri = vscode.Uri.file(viewPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find partial view file for action: ${actionName}`);
+                }
+            } else {
+                vscode.window.showWarningMessage('Could not determine action name for PartialView() call with model.');
             }
             return;
         }

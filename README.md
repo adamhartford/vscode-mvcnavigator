@@ -34,14 +34,20 @@ The extension recognizes various patterns of View() and PartialView() calls:
 return View("ViewName");        // Navigates to ViewName.cshtml
 return View("ViewName", model); // Navigates to ViewName.cshtml  
 return View();                  // Navigates to {ActionName}.cshtml (follows MVC convention)
+return View(model);             // Navigates to {ActionName}.cshtml (follows MVC convention)
+return View(new ErrorViewModel { RequestId = "123" }); // Navigates to {ActionName}.cshtml
 View("ViewName")               // Navigates to ViewName.cshtml
 return View( "ViewName" );     // with spaces - Navigates to ViewName.cshtml
 
 return PartialView("_PartialName");     // Navigates to _PartialName.cshtml
 return PartialView("_PartialName", model); // Navigates to _PartialName.cshtml
 return PartialView();                   // Navigates to {ActionName}.cshtml (follows MVC convention)
+return PartialView(model);              // Navigates to {ActionName}.cshtml (follows MVC convention)
+return PartialView(new Model { Property = "value" }); // Navigates to {ActionName}.cshtml
 PartialView("_PartialName")            // Navigates to _PartialName.cshtml
 ```
+
+**View() with Model Support**: The extension now supports View() and PartialView() calls that pass model objects or create new instances. These are treated as convention-based calls where the view name matches the action method name.
 
 **Parameterless View() Calls**: When you use `return View();` without specifying a view name, the extension automatically determines the view name based on the current action method name, following standard ASP.NET MVC conventions.
 

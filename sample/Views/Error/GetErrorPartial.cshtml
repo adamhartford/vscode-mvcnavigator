@@ -1,0 +1,13 @@
+@model ErrorViewModel
+
+<div class="error-partial">
+    <h5>Error Partial</h5>
+    @if (Model?.ShowRequestId == true)
+    {
+        <p class="text-muted">Request ID: @Model.RequestId</p>
+    }
+    <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle"></i>
+        An error occurred while processing your request.
+    </div>
+</div>
