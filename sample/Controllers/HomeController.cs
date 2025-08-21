@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
 
 namespace SampleMvcApp.Controllers
 {
@@ -16,7 +17,7 @@ namespace SampleMvcApp.Controllers
 
         public IActionResult Contact()
         {
-            return View("Contact");
+            return View();
         }
 
         public IActionResult Privacy()
@@ -31,7 +32,18 @@ namespace SampleMvcApp.Controllers
 
         public IActionResult Error()
         {
-            return View("Error");
+            return View();
+        }
+
+        public async Task<IActionResult> AsyncAction()
+        {
+            await Task.Delay(100);
+            return View();
+        }
+
+        public ActionResult<string> ApiAction()
+        {
+            return View();
         }
     }
 }

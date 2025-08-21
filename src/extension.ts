@@ -4,8 +4,9 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
-// Regular expression to match View() calls
-const VIEW_CALL_REGEX = /\bView\s*\(\s*["']([^"']+)["']\s*\)/g;
+// Regular expressions to match View() calls
+const VIEW_CALL_WITH_NAME_REGEX = /\bView\s*\(\s*["']([^"']+)["']\s*\)/g;
+const VIEW_CALL_PARAMETERLESS_REGEX = /\bView\s*\(\s*\)/g;
 
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     
@@ -18,12 +19,21 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         }
 
         const text = document.getText();
+        
+        // Handle View("ViewName") calls
+        this.processViewCallsWithName(document, text, links);
+        
+        // Handle parameterless View() calls
+        this.processParameterlessViewCalls(document, text, links);
+
+        return links;
+    }
+
+    private processViewCallsWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
+        VIEW_CALL_WITH_NAME_REGEX.lastIndex = 0;
 
-        // Reset regex index
-        VIEW_CALL_REGEX.lastIndex = 0;
-
-        while ((match = VIEW_CALL_REGEX.exec(text)) !== null) {
+        while ((match = VIEW_CALL_WITH_NAME_REGEX.exec(text)) !== null) {
             const viewName = match[1];
             const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
             const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
@@ -37,8 +47,51 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 links.push(link);
             }
         }
+    }
 
-        return links;
+    private processParameterlessViewCalls(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        VIEW_CALL_PARAMETERLESS_REGEX.lastIndex = 0;
+
+        while ((match = VIEW_CALL_PARAMETERLESS_REGEX.exec(text)) !== null) {
+            const actionName = this.getActionNameFromPosition(document, match.index);
+            if (actionName) {
+                // Find the "View" text within the match
+                const viewWordIndex = match[0].indexOf('View');
+                const startPos = document.positionAt(match.index + viewWordIndex);
+                const endPos = document.positionAt(match.index + viewWordIndex + 4); // "View" is 4 characters
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${actionName}.cshtml`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private getActionNameFromPosition(document: vscode.TextDocument, position: number): string | null {
+        const textUpToPosition = document.getText(new vscode.Range(new vscode.Position(0, 0), document.positionAt(position)));
+        
+        // Look for the nearest method declaration before this position
+        // Pattern matches: public/private/protected IActionResult/ActionResult MethodName(
+        const methodRegex = /(?:public|private|protected|internal)?\s*(?:async\s+)?(?:Task<)?(?:IActionResult|ActionResult|IActionResult<[^>]+>|ActionResult<[^>]+>)>?\s+(\w+)\s*\([^)]*\)\s*\{[^}]*$/;
+        
+        const lines = textUpToPosition.split('\n');
+        
+        // Search backwards from the current line to find the method declaration
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const cumulativeText = lines.slice(Math.max(0, i - 5), i + 1).join('\n'); // Look at a few lines of context
+            const match = cumulativeText.match(methodRegex);
+            if (match) {
+                return match[1]; // Return the method name
+            }
+        }
+        
+        return null;
     }
 
     private findViewFile(controllerUri: vscode.Uri, viewName: string): string | null {
@@ -136,10 +189,10 @@ export function activate(context: vscode.ExtensionContext) {
         const line = document.lineAt(position.line);
         const lineText = line.text;
 
-        // Look for View() call on current line
-        const match = lineText.match(/\bView\s*\(\s*["']([^"']+)["']\s*\)/);
-        if (match) {
-            const viewName = match[1];
+        // Look for View() call with explicit name on current line
+        const namedViewMatch = lineText.match(/\bView\s*\(\s*["']([^"']+)["']\s*\)/);
+        if (namedViewMatch) {
+            const viewName = namedViewMatch[1];
             const linkProvider = new MvcDocumentLinkProvider();
             const viewPath = (linkProvider as any).findViewFile(document.uri, viewName);
             
@@ -149,9 +202,31 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showWarningMessage(`Could not find view file for: ${viewName}`);
             }
-        } else {
-            vscode.window.showWarningMessage('No View() call found on current line.');
+            return;
         }
+
+        // Look for parameterless View() call on current line
+        const parameterlessViewMatch = lineText.match(/\bView\s*\(\s*\)/);
+        if (parameterlessViewMatch) {
+            const linkProvider = new MvcDocumentLinkProvider();
+            const actionName = (linkProvider as any).getActionNameFromPosition(document, document.offsetAt(position));
+            
+            if (actionName) {
+                const viewPath = (linkProvider as any).findViewFile(document.uri, actionName);
+                
+                if (viewPath) {
+                    const viewUri = vscode.Uri.file(viewPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find view file for action: ${actionName}`);
+                }
+            } else {
+                vscode.window.showWarningMessage('Could not determine action name for parameterless View() call.');
+            }
+            return;
+        }
+
+        vscode.window.showWarningMessage('No View() call found on current line.');
     });
 
     context.subscriptions.push(disposableLinkProvider, disposableCommand);
