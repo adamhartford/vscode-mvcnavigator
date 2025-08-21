@@ -1,0 +1,23 @@
+@model ProductModel
+
+<h2>Simple Html.Partial Test</h2>
+
+<div>
+    @* Test basic Html.Partial - should be clickable and navigate to _DemoPartial.cshtml *@
+    @Html.Partial("_DemoPartial")
+    
+    @* Test Html.Partial with model - should be clickable and navigate to _DemoPartial.cshtml *@
+    @Html.Partial("_DemoPartial", Model)
+    
+    @* Test PartialAsync - should be clickable and navigate to ParameterlessPartial.cshtml *@
+    @await Html.PartialAsync("ParameterlessPartial")
+    
+    @* Test PartialAsync with model - should be clickable and navigate to ParameterlessPartial.cshtml *@
+    @await Html.PartialAsync("ParameterlessPartial", Model)
+</div>
+
+@* Existing functionality for comparison - these should also work *@
+<div>
+    @Html.ActionLink("Test", "Index", "Home")
+    @Html.BeginForm("Create", "Product")
+</div>

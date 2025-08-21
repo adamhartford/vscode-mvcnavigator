@@ -31,7 +31,10 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:csharp"
+    "onLanguage:csharp",
+    "onLanguage:razor",
+    "onLanguage:aspnetcorerazor",
+    "onLanguage:html"
   ],
   "main": "./out/extension.js",
   "contributes": {

@@ -1,0 +1,71 @@
+@model ProductModel
+
+<h2>Html.Partial and Html.PartialAsync Navigation Test</h2>
+
+<div class="partial-tests">
+    <h3>@@Html.Partial Tests</h3>
+    @* These should now be clickable and navigate to the actual partial views *@
+    @Html.Partial("_DemoPartial")
+    @Html.Partial("ParameterlessPartial")
+    @Html.Partial("GetNavPartial")
+    
+    <h3>@@Html.Partial with Model Tests</h3>
+    @* These should also be clickable and navigate to the partial views *@
+    @Html.Partial("_DemoPartial", Model)
+    @Html.Partial("GetErrorPartial", Model)
+    @Html.Partial("GetCustomErrorPartial", ViewBag.ErrorData)
+    
+    <h3>@@Html.Partial with Full Path Tests</h3>
+    @* These should be clickable with full path resolution *@
+    @Html.Partial("~/Views/Demo/_DemoPartial.cshtml")
+    @Html.Partial("~/Views/Demo/ParameterlessPartial.cshtml")
+    @Html.Partial("~/Views/Shared/_CommentsList.cshtml")
+    @Html.Partial("~/Views/Shared/_UserInfo.cshtml", Model)
+    
+    <h3>@@await Html.PartialAsync Tests</h3>
+    @* These should be clickable for async partial views *@
+    @await Html.PartialAsync("_DemoPartial")
+    @await Html.PartialAsync("ParameterlessPartial")
+    @await Html.PartialAsync("GetCustomErrorPartial")
+    
+    <h3>@@await Html.PartialAsync with Model Tests</h3>
+    @* These should also be clickable with models *@
+    @await Html.PartialAsync("_DemoPartial", Model)
+    @await Html.PartialAsync("GetNavPartial", Model)
+    @await Html.PartialAsync("GetErrorPartial", new ErrorModel())
+    
+    <h3>@@await Html.PartialAsync with Full Path Tests</h3>
+    @* These should be clickable with full path resolution *@
+    @await Html.PartialAsync("~/Views/Demo/_DemoPartial.cshtml")
+    @await Html.PartialAsync("~/Views/Demo/ParameterlessPartial.cshtml")
+    @await Html.PartialAsync("~/Views/Shared/_CommentsList.cshtml")
+    @await Html.PartialAsync("~/Views/Shared/_UserInfo.cshtml", Model)
+    
+    <h3>Without ampersand prefix (should also work)</h3>
+    @* These variations should also be supported *@
+    Html.Partial("_DemoPartial")
+    Html.Partial("~/Views/Shared/_ProductCard.cshtml", Model)
+    await Html.PartialAsync("ParameterlessPartial", Model)
+    await Html.PartialAsync("~/Views/Demo/_DemoPartial.cshtml")
+</div>
+
+<div class="existing-helpers">
+    <h3>Existing Helper Tests (should continue to work)</h3>
+    @* These existing helpers should continue to work as before *@
+    @Html.ActionLink("Home", "Index", "Home")
+    @Html.ActionLink("Demo View", "Index", "Demo")
+    @Html.BeginForm("Create", "Product")
+    @Html.BeginForm("Update", "Product")
+    @Url.Action("Details", "Product")
+    @Url.Action("Edit", "Product")
+</div>
+
+@* 
+    Instructions for testing:
+    1. Open this file in VS Code with the MVC Navigator extension installed
+    2. Hover over any of the partial view names in quotes (e.g., "_DemoPartial")
+    3. You should see a clickable link that navigates to the partial view file
+    4. Test both @Html.Partial and @await Html.PartialAsync variations
+    5. Test both relative names and full paths (starting with ~/)
+    6. Verify that existing @Html.ActionLink and @Html.BeginForm still work
+*@

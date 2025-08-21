@@ -48,6 +48,18 @@ const HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX = /@?Html\.BeginForm\s*\(
 const HTML_BEGIN_FORM_WITH_PARAMS_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
 const HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
 
+// Regular expressions to match @Html.Partial() calls in Razor views
+const HTML_PARTIAL_WITH_NAME_REGEX = /@?Html\.Partial\s*\(\s*["']([^"']+)["']\s*\)(?!\s*,)/g;
+const HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX = /@?Html\.Partial\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
+const HTML_PARTIAL_WITH_FULL_PATH_REGEX = /@?Html\.Partial\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
+const HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX = /@?Html\.Partial\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
+
+// Regular expressions to match @await Html.PartialAsync() calls in Razor views
+const HTML_PARTIAL_ASYNC_WITH_NAME_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["']([^"']+)["']\s*\)(?!\s*,)/g;
+const HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
+const HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
+const HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
+
 // Regular expressions to match ASP.NET Core Tag Helpers
 const ANCHOR_TAG_HELPER_ACTION_REGEX = /<a[^>]*asp-action\s*=\s*["']([^"']+)["'][^>]*>/g;
 const ANCHOR_TAG_HELPER_CONTROLLER_REGEX = /<a[^>]*asp-controller\s*=\s*["']([^"']+)["'][^>]*>/g;
@@ -194,6 +206,30 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
         // Handle @Html.BeginForm("ActionName", routeValues) calls
         this.processHtmlBeginFormWithAnonymousObject(document, text, links);
+        
+        // Handle @Html.Partial with full paths (process specific patterns first)
+        this.processHtmlPartialWithFullPathAndModel(document, text, links);
+        
+        // Handle @Html.Partial("~/path/to/partial.cshtml") calls
+        this.processHtmlPartialWithFullPath(document, text, links);
+        
+        // Handle @Html.Partial("PartialName", model) calls (process specific patterns first)
+        this.processHtmlPartialWithNameAndModel(document, text, links);
+
+        // Handle @Html.Partial("PartialName") calls
+        this.processHtmlPartialWithName(document, text, links);
+
+        // Handle @await Html.PartialAsync with full paths (process specific patterns first)
+        this.processHtmlPartialAsyncWithFullPathAndModel(document, text, links);
+        
+        // Handle @await Html.PartialAsync("~/path/to/partial.cshtml") calls
+        this.processHtmlPartialAsyncWithFullPath(document, text, links);
+
+        // Handle @await Html.PartialAsync("PartialName", model) calls (process specific patterns first)
+        this.processHtmlPartialAsyncWithNameAndModel(document, text, links);
+
+        // Handle @await Html.PartialAsync("PartialName") calls
+        this.processHtmlPartialAsyncWithName(document, text, links);
     }
 
     private processTagHelperNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
@@ -1228,6 +1264,242 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         }
     }
 
+    // @Html.Partial processing methods
+    private processHtmlPartialWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_WITH_NAME_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_WITH_NAME_REGEX.exec(text)) !== null) {
+            const partialViewName = match[1];
+            
+            // Find the exact position of the quoted partial view name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const partialNameWithQuotes = `${quoteChar}${partialViewName}${quoteChar}`;
+            const partialStartInMatch = fullMatch.indexOf(partialNameWithQuotes);
+            
+            if (partialStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + partialStartInMatch);
+                const endPos = document.positionAt(match.index + partialStartInMatch + partialNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findPartialViewFromView(document.uri, partialViewName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${partialViewName}.cshtml`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlPartialWithNameAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX.exec(text)) !== null) {
+            const partialViewName = match[1];
+            
+            // Find the exact position of the quoted partial view name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const partialNameWithQuotes = `${quoteChar}${partialViewName}${quoteChar}`;
+            const partialStartInMatch = fullMatch.indexOf(partialNameWithQuotes);
+            
+            if (partialStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + partialStartInMatch);
+                const endPos = document.positionAt(match.index + partialStartInMatch + partialNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findPartialViewFromView(document.uri, partialViewName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${partialViewName}.cshtml`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // @await Html.PartialAsync processing methods
+    private processHtmlPartialAsyncWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_ASYNC_WITH_NAME_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_ASYNC_WITH_NAME_REGEX.exec(text)) !== null) {
+            const partialViewName = match[1];
+            
+            // Find the exact position of the quoted partial view name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const partialNameWithQuotes = `${quoteChar}${partialViewName}${quoteChar}`;
+            const partialStartInMatch = fullMatch.indexOf(partialNameWithQuotes);
+            
+            if (partialStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + partialStartInMatch);
+                const endPos = document.positionAt(match.index + partialStartInMatch + partialNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findPartialViewFromView(document.uri, partialViewName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${partialViewName}.cshtml`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlPartialAsyncWithNameAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX.exec(text)) !== null) {
+            const partialViewName = match[1];
+            
+            // Find the exact position of the quoted partial view name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const partialNameWithQuotes = `${quoteChar}${partialViewName}${quoteChar}`;
+            const partialStartInMatch = fullMatch.indexOf(partialNameWithQuotes);
+            
+            if (partialStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + partialStartInMatch);
+                const endPos = document.positionAt(match.index + partialStartInMatch + partialNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const viewPath = this.findPartialViewFromView(document.uri, partialViewName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${partialViewName}.cshtml`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // @Html.Partial with full path processing methods
+    private processHtmlPartialWithFullPath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_WITH_FULL_PATH_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
+            const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${fullPath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(fullPath)} (Html.Partial with full path)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlPartialWithFullPathAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
+            const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${fullPath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(fullPath)} (Html.Partial with full path and model)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // @await Html.PartialAsync with full path processing methods
+    private processHtmlPartialAsyncWithFullPath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
+            const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${fullPath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(fullPath)} (Html.PartialAsync with full path)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlPartialAsyncWithFullPathAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
+            const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${fullPath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(fullPath)} (Html.PartialAsync with full path and model)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
     private getActionNameFromPosition(document: vscode.TextDocument, position: number): string | null {
         const textUpToPosition = document.getText(new vscode.Range(new vscode.Position(0, 0), document.positionAt(position)));
         
@@ -1309,6 +1581,80 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         }
 
         return null;
+    }
+
+    private findPartialViewFromView(viewUri: vscode.Uri, partialViewName: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(viewUri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        // Extract controller name from the view file path
+        // Path structure: .../Views/{ControllerName}/{ViewName}.cshtml
+        // or .../Areas/{AreaName}/Views/{ControllerName}/{ViewName}.cshtml
+        const viewPath = viewUri.fsPath;
+        const pathParts = viewPath.replace(/\\/g, '/').split('/');
+        
+        let controllerName = '';
+        let areaInfo: { areaName: string; isAreaController: boolean } | null = null;
+        
+        // Find Views folder and extract controller name
+        for (let i = pathParts.length - 1; i >= 0; i--) {
+            if (pathParts[i].toLowerCase() === 'views') {
+                // Check if this is an area structure
+                if (i >= 2 && pathParts[i - 2].toLowerCase() === 'areas') {
+                    areaInfo = {
+                        areaName: pathParts[i - 1],
+                        isAreaController: true
+                    };
+                }
+                
+                // Get controller name (folder after Views)
+                if (i + 1 < pathParts.length) {
+                    controllerName = pathParts[i + 1];
+                }
+                break;
+            }
+        }
+
+        // Find potential MVC project roots from the view file path
+        const projectRoots = this.findMvcProjectRootsFromView(workspaceFolder.uri.fsPath, viewPath);
+        
+        for (const projectRoot of projectRoots) {
+            const viewPath = this.searchPartialViewInProject(projectRoot, controllerName, partialViewName, areaInfo);
+            if (viewPath) {
+                return viewPath;
+            }
+        }
+
+        return null;
+    }
+
+    private findMvcProjectRootsFromView(workspaceRoot: string, viewPath: string): string[] {
+        const projectRoots: string[] = [];
+        
+        // Start from the view's directory and walk up to find potential project roots
+        let currentDir = path.dirname(viewPath);
+        
+        while (currentDir !== workspaceRoot && currentDir !== path.dirname(currentDir)) {
+            // Check if this directory looks like an MVC project root
+            if (this.isMvcProjectRoot(currentDir)) {
+                projectRoots.push(currentDir);
+            }
+            currentDir = path.dirname(currentDir);
+        }
+        
+        // Also check the workspace root itself
+        if (this.isMvcProjectRoot(workspaceRoot)) {
+            projectRoots.push(workspaceRoot);
+        }
+        
+        // If no project roots found, fall back to workspace root
+        if (projectRoots.length === 0) {
+            projectRoots.push(workspaceRoot);
+        }
+        
+        return projectRoots;
     }
 
     private detectAreaFromControllerPath(controllerPath: string): { areaName: string; isAreaController: boolean } | null {
