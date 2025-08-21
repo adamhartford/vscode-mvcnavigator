@@ -310,6 +310,22 @@ Project/
 - `ASP.NET MVC Navigator: Navigate to Action Method` - Navigate to a specific action method
 - `ASP.NET MVC Navigator: Navigate to Controller Class` - Navigate to a controller class definition
 
+## Development
+
+### Testing
+
+Run the test suite with:
+```bash
+npm test
+```
+
+### Project Structure
+
+- `src/` - Extension source code
+- `src/test/` - Official unit tests
+- `test-scripts/` - Development/debugging scripts (not part of the main test suite)
+- `sample/` - Sample MVC projects for testing
+
 ## Known Issues
 
 - Method name detection for parameterless View() calls works with standard method patterns but may not work with very complex method signatures

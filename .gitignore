@@ -4,6 +4,9 @@ node_modules
 .vscode-test/
 *.vsix
 
+# Development test scripts
+test-scripts/
+
 # .NET build folders
 bin/
 obj/
