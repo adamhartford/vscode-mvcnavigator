@@ -7,8 +7,9 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 - **Ctrl+Click Navigation**: Navigate from controller actions to their corresponding views by Ctrl+clicking on view names in `View()` and `PartialView()` calls
 - **RedirectToAction Navigation**: Navigate to action methods by Ctrl+clicking on action names or controller names in `RedirectToAction()` calls
 - **Razor View Navigation**: Navigate to action methods from Razor views using `@Url.Action()`, `@Html.ActionLink()`, and `@Html.BeginForm()` calls
+- **ASP.NET Core Tag Helper Support**: Navigate to action methods and controllers from modern tag helpers like `<a asp-action="..." asp-controller="...">` and `<form asp-action="..." asp-controller="...">`
 - **Underlined View Names**: View names in `View("ViewName")` and `PartialView("_PartialName")` calls are automatically underlined and made clickable
-- **Underlined Action/Controller Names**: Action names and controller names in `RedirectToAction()`, `@Url.Action()`, `@Html.ActionLink()`, and `@Html.BeginForm()` calls are automatically underlined and made clickable
+- **Underlined Action/Controller Names**: Action names and controller names in `RedirectToAction()`, `@Url.Action()`, `@Html.ActionLink()`, `@Html.BeginForm()`, and tag helper attributes are automatically underlined and made clickable
 - **Parameterless Call Support**: Both `View()` and `PartialView()` calls without parameters automatically resolve to action-named views
 - **Multi-Project Workspace Support**: Automatically detects and handles multiple ASP.NET MVC projects within a single VS Code workspace
 - **Smart Project Root Detection**: Intelligently identifies MVC project boundaries by looking for .csproj files, Views folders, Controllers folders, and other MVC indicators
@@ -151,6 +152,44 @@ The extension supports navigation for `@Html.BeginForm()` calls in Razor views:
 @Html.BeginForm("ActionName", "ControllerName", new { id = 1 }) // Both action and controller are clickable
 @Html.BeginForm("ActionName", new { area = "" })                // Navigates to ActionName method with route values
 ```
+
+### ASP.NET Core Tag Helper Patterns in Razor Views
+
+The extension supports modern ASP.NET Core tag helper navigation:
+
+```html
+<!-- Anchor Tag Helpers -->
+<a asp-action="Index" asp-controller="Home">Home</a>                    // Navigates to Index action in HomeController
+<a asp-action="Details" asp-controller="Product" asp-area="Admin">      // Navigates to Details action in Admin area ProductController
+    Product Details
+</a>
+<a asp-action="Edit" asp-controller="User">Edit User</a>                // Both action and controller names are clickable
+
+<!-- Form Tag Helpers -->
+<form asp-action="Create" asp-controller="User" method="post">          // Navigates to Create action in UserController
+    <input type="submit" value="Create" />
+</form>
+<form asp-action="Update" asp-controller="Product" asp-area="Catalog">  // Navigates to Update action in Catalog area ProductController
+    <input type="submit" value="Update" />
+</form>
+
+<!-- Flexible Formatting -->
+<a asp-action = "Delete"                                               // Works with flexible spacing
+   asp-controller="User" 
+   asp-route-id="123">Delete</a>
+
+<a asp-action='Edit' asp-controller='Product' asp-area='Admin'>        // Works with single quotes
+    Edit Product
+</a>
+```
+
+**Tag Helper Navigation Features**:
+- **Action Names**: Ctrl+click on action values in `asp-action` attributes to navigate to the corresponding action method
+- **Controller Names**: Ctrl+click on controller values in `asp-controller` attributes to navigate to the controller file
+- **Area Support**: Full support for `asp-area` attributes with area-aware navigation
+- **Flexible Formatting**: Works with various quote styles (single/double) and spacing
+- **Modern ASP.NET Core**: Provides navigation for current tag helper syntax alongside traditional HTML helpers
+- **Mixed Usage**: Can be used alongside traditional @Html helpers in the same view
 
 **Razor View Navigation Features**:
 - **Action Names**: Ctrl+click on action names to navigate to the corresponding action method

@@ -48,6 +48,15 @@ const HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX = /@?Html\.BeginForm\s*\(
 const HTML_BEGIN_FORM_WITH_PARAMS_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
 const HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
 
+// Regular expressions to match ASP.NET Core Tag Helpers
+const ANCHOR_TAG_HELPER_ACTION_REGEX = /<a[^>]*asp-action\s*=\s*["']([^"']+)["'][^>]*>/g;
+const ANCHOR_TAG_HELPER_CONTROLLER_REGEX = /<a[^>]*asp-controller\s*=\s*["']([^"']+)["'][^>]*>/g;
+const ANCHOR_TAG_HELPER_AREA_REGEX = /<a[^>]*asp-area\s*=\s*["']([^"']*)["'][^>]*>/g;  // Allow empty string for asp-area=""
+
+const FORM_TAG_HELPER_ACTION_REGEX = /<form[^>]*asp-action\s*=\s*["']([^"']+)["'][^>]*>/g;
+const FORM_TAG_HELPER_CONTROLLER_REGEX = /<form[^>]*asp-controller\s*=\s*["']([^"']+)["'][^>]*>/g;
+const FORM_TAG_HELPER_AREA_REGEX = /<form[^>]*asp-area\s*=\s*["']([^"']*)["'][^>]*>/g;  // Allow empty string for asp-area=""
+
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number }>();
     
@@ -84,7 +93,14 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         if (document.languageId === 'razor' || document.languageId === 'html' || 
             document.languageId === 'aspnetcorerazor' ||
             document.fileName.endsWith('.cshtml') || document.fileName.endsWith('.razor')) {
+            
+            // Debug logging
+            console.log(`[MVC Navigator] Processing file: ${document.fileName}, languageId: ${document.languageId}`);
+            
             this.processRazorNavigations(document, links);
+            this.processTagHelperNavigations(document, links);
+            
+            console.log(`[MVC Navigator] Found ${links.length} links in ${document.fileName}`);
         }
 
         return links;
@@ -178,6 +194,21 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
         // Handle @Html.BeginForm("ActionName", routeValues) calls
         this.processHtmlBeginFormWithAnonymousObject(document, text, links);
+    }
+
+    private processTagHelperNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
+        const text = document.getText();
+        
+        console.log(`[MVC Navigator] Processing tag helpers in ${document.fileName}`);
+        console.log(`[MVC Navigator] Document content length: ${text.length}`);
+        
+        // Handle <a asp-action="..." asp-controller="..." asp-area="..."> tag helpers
+        this.processAnchorTagHelpers(document, text, links);
+        
+        // Handle <form asp-action="..." asp-controller="..." asp-area="..."> tag helpers
+        this.processFormTagHelpers(document, text, links);
+        
+        console.log(`[MVC Navigator] Tag helper processing complete for ${document.fileName}`);
     }
 
     private processViewCallsWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
@@ -1787,6 +1818,152 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             }
         } catch (error) {}
         return undefined;
+    }
+
+    private processAnchorTagHelpers(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        // Handle <a asp-action="ActionName" asp-controller="ControllerName" asp-area="AreaName">
+        let match;
+        
+        console.log(`[MVC Navigator] Processing anchor tag helpers...`);
+        
+        // Reset regex state
+        ANCHOR_TAG_HELPER_ACTION_REGEX.lastIndex = 0;
+        
+        let matchCount = 0;
+        while ((match = ANCHOR_TAG_HELPER_ACTION_REGEX.exec(text)) !== null) {
+            matchCount++;
+            const fullMatch = match[0];
+            const actionName = match[1];
+            
+            console.log(`[MVC Navigator] Found anchor tag helper ${matchCount}: action="${actionName}"`);
+            console.log(`[MVC Navigator] Full match: ${fullMatch}`);
+            
+            // Extract controller and area from the same tag
+            const controllerMatch = fullMatch.match(/asp-controller\s*=\s*["']([^"']+)["']/);
+            const areaMatch = fullMatch.match(/asp-area\s*=\s*["']([^"']*)["']/);  // Allow empty string
+            
+            const controllerName = controllerMatch ? controllerMatch[1] : null;
+            const areaName = areaMatch ? (areaMatch[1] || null) : null;  // Treat empty string as null
+            
+            console.log(`[MVC Navigator] Extracted - controller: ${controllerName}, area: ${areaName}`);
+            
+            // Create range for the action name (excluding quotes)
+            const actionStart = match.index + fullMatch.indexOf(`"${actionName}"`) + 1;
+            const actionEnd = actionStart + actionName.length;
+            const actionRange = new vscode.Range(
+                document.positionAt(actionStart),
+                document.positionAt(actionEnd)
+            );
+            
+            // Find the action file using area-aware method
+            let actionPath = null;
+            if (controllerName && areaName) {
+                actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+            } else if (controllerName) {
+                actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+            } else {
+                // When no controller specified, use view context to find the controller
+                actionPath = this.findActionMethodFromView(document.uri, actionName);
+            }
+            
+            console.log(`[MVC Navigator] Action search result: ${actionPath ? 'found' : 'not found'}`);
+            
+            if (actionPath) {
+                const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                links.push(new vscode.DocumentLink(actionRange, commandUri));
+                console.log(`[MVC Navigator] Created link for action "${actionName}"`);
+            } else {
+                console.log(`[MVC Navigator] No action found for "${actionName}"`);
+            }
+            
+            // If controller is specified, create link for it too
+            if (controllerName) {
+                const controllerStart = match.index + fullMatch.indexOf(`"${controllerName}"`) + 1;
+                const controllerEnd = controllerStart + controllerName.length;
+                const controllerRange = new vscode.Range(
+                    document.positionAt(controllerStart),
+                    document.positionAt(controllerEnd)
+                );
+                
+                let controllerPath = null;
+                if (areaName) {
+                    controllerPath = this.findControllerFileInArea(document.uri, controllerName, areaName);
+                } else {
+                    controllerPath = this.findControllerFile(document.uri, controllerName);
+                }
+                
+                if (controllerPath) {
+                    const commandUri = this.createControllerCommandUri(controllerPath);
+                    links.push(new vscode.DocumentLink(controllerRange, commandUri));
+                }
+            }
+        }
+    }
+
+    private processFormTagHelpers(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        // Handle <form asp-action="ActionName" asp-controller="ControllerName" asp-area="AreaName">
+        let match;
+        
+        // Reset regex state
+        FORM_TAG_HELPER_ACTION_REGEX.lastIndex = 0;
+        
+        while ((match = FORM_TAG_HELPER_ACTION_REGEX.exec(text)) !== null) {
+            const fullMatch = match[0];
+            const actionName = match[1];
+            
+            // Extract controller and area from the same tag
+            const controllerMatch = fullMatch.match(/asp-controller\s*=\s*["']([^"']+)["']/);
+            const areaMatch = fullMatch.match(/asp-area\s*=\s*["']([^"']*)["']/);  // Allow empty string
+            
+            const controllerName = controllerMatch ? controllerMatch[1] : null;
+            const areaName = areaMatch ? (areaMatch[1] || null) : null;  // Treat empty string as null
+            
+            // Create range for the action name (excluding quotes)
+            const actionStart = match.index + fullMatch.indexOf(`"${actionName}"`) + 1;
+            const actionEnd = actionStart + actionName.length;
+            const actionRange = new vscode.Range(
+                document.positionAt(actionStart),
+                document.positionAt(actionEnd)
+            );
+            
+            // Find the action file using area-aware method
+            let actionPath = null;
+            if (controllerName && areaName) {
+                actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+            } else if (controllerName) {
+                actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+            } else {
+                // When no controller specified, use view context to find the controller
+                actionPath = this.findActionMethodFromView(document.uri, actionName);
+            }
+            
+            if (actionPath) {
+                const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                links.push(new vscode.DocumentLink(actionRange, commandUri));
+            }
+            
+            // If controller is specified, create link for it too
+            if (controllerName) {
+                const controllerStart = match.index + fullMatch.indexOf(`"${controllerName}"`) + 1;
+                const controllerEnd = controllerStart + controllerName.length;
+                const controllerRange = new vscode.Range(
+                    document.positionAt(controllerStart),
+                    document.positionAt(controllerEnd)
+                );
+                
+                let controllerPath = null;
+                if (areaName) {
+                    controllerPath = this.findControllerFileInArea(document.uri, controllerName, areaName);
+                } else {
+                    controllerPath = this.findControllerFile(document.uri, controllerName);
+                }
+                
+                if (controllerPath) {
+                    const commandUri = this.createControllerCommandUri(controllerPath);
+                    links.push(new vscode.DocumentLink(controllerRange, commandUri));
+                }
+            }
+        }
     }
 }
 

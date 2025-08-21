@@ -1,0 +1,75 @@
+@{
+    ViewData["Title"] = "Area Navigation Test";
+}
+
+<h2>Area-Aware Tag Helper Navigation Test</h2>
+<p>Testing navigation from different area contexts</p>
+
+<div class="area-navigation-tests">
+    
+    <h3>Navigation to Specific Areas</h3>
+    
+    <!-- Navigate to Admin area controllers -->
+    <a asp-action="Dashboard" asp-controller="Home" asp-area="Admin">Admin Dashboard</a>
+    <a asp-action="Index" asp-controller="User" asp-area="Admin">Admin Users</a>
+    <a asp-action="Details" asp-controller="Product" asp-area="Admin">Admin Products</a>
+    
+    <!-- Navigate to Catalog area controllers -->
+    <a asp-action="Browse" asp-controller="Product" asp-area="Catalog">Browse Catalog</a>
+    <a asp-action="Search" asp-controller="Product" asp-area="Catalog">Search Products</a>
+    
+    <h3>Navigation to Main Area (No Area)</h3>
+    
+    <!-- Navigate to main area controllers using asp-area="" -->
+    <a asp-action="Index" asp-controller="Home" asp-area="">Main Home Page</a>
+    <a asp-action="About" asp-controller="Home" asp-area="">About Us</a>
+    <a asp-action="Contact" asp-controller="Home" asp-area="">Contact</a>
+    
+    <h3>Navigation Without Area Attribute</h3>
+    
+    <!-- Navigate to controllers without specifying area (defaults to current context) -->
+    <a asp-action="Privacy" asp-controller="Home">Privacy Policy</a>
+    <a asp-action="Terms" asp-controller="Home">Terms of Service</a>
+    
+    <h3>Form Tag Helper Area Tests</h3>
+    
+    <!-- Forms targeting area-specific controllers -->
+    <form asp-action="Create" asp-controller="User" asp-area="Admin" method="post">
+        <input type="submit" value="Create User (Admin)" />
+    </form>
+    
+    <form asp-action="Update" asp-controller="Product" asp-area="Catalog" method="post">
+        <input type="submit" value="Update Product (Catalog)" />
+    </form>
+    
+    <!-- Forms targeting main area controllers -->
+    <form asp-action="Subscribe" asp-controller="Newsletter" asp-area="" method="post">
+        <input type="submit" value="Subscribe (Main)" />
+    </form>
+    
+    <form asp-action="Login" asp-controller="Account" method="post">
+        <input type="submit" value="Login (No Area)" />
+    </form>
+    
+    <h3>Mixed Area Scenarios</h3>
+    
+    <!-- Cross-area navigation scenarios -->
+    <div class="cross-area-links">
+        <p>From this view, navigate to:</p>
+        <ul>
+            <li><a asp-action="Index" asp-controller="Home" asp-area="">Main site</a></li>
+            <li><a asp-action="Dashboard" asp-controller="Admin" asp-area="Admin">Admin panel</a></li>
+            <li><a asp-action="Categories" asp-controller="Product" asp-area="Catalog">Product catalog</a></li>
+        </ul>
+    </div>
+    
+</div>
+
+<div class="test-notes">
+    <h4>Expected Behavior</h4>
+    <ul>
+        <li><code>asp-area="Admin"</code> should navigate to <code>Areas/Admin/Controllers/</code></li>
+        <li><code>asp-area=""</code> should navigate to <code>Controllers/</code> (main area)</li>
+        <li>No <code>asp-area</code> should use current context or default behavior</li>
+    </ul>
+</div>
