@@ -9,12 +9,3 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
-
-# Test files
-regex-test.js
-test-*.js
-
-# Development documentation
-FULLPATH_FEATURE.md
-HTML_HELPERS_FEATURE.md
-REDIRECTTOACTION_FEATURE.md
