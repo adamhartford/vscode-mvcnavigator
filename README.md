@@ -27,7 +27,10 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 2. Locate a `View()`, `PartialView()`, or `RedirectToAction()` call with names, e.g., `return View("MyView");`, `return PartialView("_MyPartial");`, or `return RedirectToAction("MyAction", "MyController");`
 3. The view name, action name, or controller name will be automatically underlined
 4. Ctrl+click on the name to navigate to the corresponding `.cshtml`/`.razor` file or action method
-5. Alternatively, use the command palette and search for "Navigate to View" when your cursor is on a line with a View(), PartialView(), or RedirectToAction() call
+5. Alternatively, use the command palette (Ctrl+Shift+P) and search for:
+   - "Navigate to View" when your cursor is on a line with a View() or PartialView() call
+   - "Navigate to Action Method" to navigate to a specific action
+   - "Navigate to Controller Class" to navigate to a controller file
 
 ### For Razor Views
 
@@ -255,6 +258,8 @@ Project/
 ## Commands
 
 - `ASP.NET MVC Navigator: Navigate to View` - Manually navigate to a view from the current cursor position
+- `ASP.NET MVC Navigator: Navigate to Action Method` - Navigate to a specific action method
+- `ASP.NET MVC Navigator: Navigate to Controller Class` - Navigate to a controller class definition
 
 ## Known Issues
 
