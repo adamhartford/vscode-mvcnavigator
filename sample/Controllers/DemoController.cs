@@ -63,11 +63,11 @@ namespace SampleMvcApp.Controllers
             return RedirectToAction("NotFound", "Error");
         }
 
-        public IActionResult RedirectToDepartmentDetails()
+        public IActionResult RedirectToProductDetails()
         {
-            // Ctrl+click on "DepartmentDetails" should navigate to DepartmentController.DepartmentDetails
-            // Ctrl+click on "Department" should navigate to DepartmentController.cs
-            return RedirectToAction("DepartmentDetails", "Department", new { id = 5 });
+            // Ctrl+click on "Details" should navigate to ProductController.Details
+            // Ctrl+click on "Product" should navigate to ProductController.cs
+            return RedirectToAction("Details", "Product", new { id = 5 });
         }
 
         // Complex scenarios

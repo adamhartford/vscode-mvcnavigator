@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "Products";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="product-index">
+    <p>Welcome to the Product management page.</p>
+    
+    <div class="actions">
+        <a href="/Product/Create" class="btn btn-primary">Create New Product</a>
+    </div>
+    
+    <div class="product-list">
+        <!-- Product list would go here -->
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>Laptop Computer</td>
+                    <td>High-performance laptop</td>
+                    <td>
+                        <a href="/Product/Details/1" class="btn btn-sm btn-info">Details</a>
+                        <a href="/Product/Edit/1" class="btn btn-sm btn-warning">Edit</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

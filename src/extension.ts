@@ -32,6 +32,18 @@ const URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /@Url\.Action\s*\(\s*["']([^
 const URL_ACTION_WITH_PARAMS_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
 const URL_ACTION_ANONYMOUS_OBJECT_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
 
+// Regular expressions to match @Html.ActionLink() calls in Razor views
+const HTML_ACTION_LINK_WITH_ACTION_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*\)/g;
+const HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
+const HTML_ACTION_LINK_WITH_PARAMS_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
+const HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
+
+// Regular expressions to match @Html.BeginForm() calls in Razor views
+const HTML_BEGIN_FORM_WITH_ACTION_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*\)/g;
+const HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
+const HTML_BEGIN_FORM_WITH_PARAMS_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
+const HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
+
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
@@ -112,6 +124,30 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
         // Handle @Url.Action("ActionName", routeValues) calls
         this.processUrlActionWithAnonymousObject(document, text, links);
+
+        // Handle @Html.ActionLink("LinkText", "ActionName") calls
+        this.processHtmlActionLinkWithAction(document, text, links);
+
+        // Handle @Html.ActionLink("LinkText", "ActionName", "ControllerName") calls
+        this.processHtmlActionLinkWithActionAndController(document, text, links);
+
+        // Handle @Html.ActionLink("LinkText", "ActionName", "ControllerName", routeValues) calls
+        this.processHtmlActionLinkWithParams(document, text, links);
+
+        // Handle @Html.ActionLink("LinkText", "ActionName", routeValues) calls
+        this.processHtmlActionLinkWithAnonymousObject(document, text, links);
+
+        // Handle @Html.BeginForm("ActionName") calls
+        this.processHtmlBeginFormWithAction(document, text, links);
+
+        // Handle @Html.BeginForm("ActionName", "ControllerName") calls
+        this.processHtmlBeginFormWithActionAndController(document, text, links);
+
+        // Handle @Html.BeginForm("ActionName", "ControllerName", routeValues) calls
+        this.processHtmlBeginFormWithParams(document, text, links);
+
+        // Handle @Html.BeginForm("ActionName", routeValues) calls
+        this.processHtmlBeginFormWithAnonymousObject(document, text, links);
     }
 
     private processViewCallsWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
@@ -591,8 +627,10 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
                         links.push(controllerLink);
                     } else {
-                        const controllerLink = new vscode.DocumentLink(controllerRange, vscode.Uri.file(controllerPath));
-                        controllerLink.tooltip = `Navigate to ${controllerName}Controller`;
+                        // Create command URI for controller navigation
+                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
                         links.push(controllerLink);
                     }
                 }
@@ -645,8 +683,10 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
                         links.push(controllerLink);
                     } else {
-                        const controllerLink = new vscode.DocumentLink(controllerRange, vscode.Uri.file(controllerPath));
-                        controllerLink.tooltip = `Navigate to ${controllerName}Controller`;
+                        // Create command URI for controller navigation
+                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
                         links.push(controllerLink);
                     }
                 }
@@ -659,6 +699,356 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         URL_ACTION_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
 
         while ((match = URL_ACTION_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodFromView(document.uri, actionName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // @Html.ActionLink processing methods
+    private processHtmlActionLinkWithAction(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_ACTION_LINK_WITH_ACTION_REGEX.lastIndex = 0;
+
+        while ((match = HTML_ACTION_LINK_WITH_ACTION_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            
+            // Find the exact position of the quoted action name (second parameter)
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            
+            // Find the second quoted string (action name)
+            const firstQuoteIndex = fullMatch.indexOf(quoteChar);
+            const firstQuoteEndIndex = fullMatch.indexOf(quoteChar, firstQuoteIndex + 1);
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes, firstQuoteEndIndex + 1);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodFromView(document.uri, actionName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlActionLinkWithActionAndController(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
+
+        while ((match = HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const controllerName = match[2];
+            
+            // Find the exact position of the quoted action name (second parameter)
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            
+            // Find the second quoted string (action name)
+            const firstQuoteIndex = fullMatch.indexOf(quoteChar);
+            const firstQuoteEndIndex = fullMatch.indexOf(quoteChar, firstQuoteIndex + 1);
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes, firstQuoteEndIndex + 1);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+            
+            // Also underline the controller name (third parameter)
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
+            
+            if (controllerStartInMatch !== -1) {
+                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+                
+                const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                
+                if (controllerPath) {
+                    // Create command URI for controller navigation
+                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
+            }
+        }
+    }
+
+    private processHtmlActionLinkWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_ACTION_LINK_WITH_PARAMS_REGEX.lastIndex = 0;
+
+        while ((match = HTML_ACTION_LINK_WITH_PARAMS_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const controllerName = match[2];
+            
+            // Find the exact position of the quoted action name (second parameter)
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            
+            // Find the second quoted string (action name)
+            const firstQuoteIndex = fullMatch.indexOf(quoteChar);
+            const firstQuoteEndIndex = fullMatch.indexOf(quoteChar, firstQuoteIndex + 1);
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes, firstQuoteEndIndex + 1);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+            
+            // Also underline the controller name (third parameter)
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
+            
+            if (controllerStartInMatch !== -1) {
+                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+                
+                const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                
+                if (controllerPath) {
+                    // Create command URI for controller navigation
+                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
+            }
+        }
+    }
+
+    private processHtmlActionLinkWithAnonymousObject(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
+
+        while ((match = HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            
+            // Find the exact position of the quoted action name (second parameter)
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            
+            // Find the second quoted string (action name)
+            const firstQuoteIndex = fullMatch.indexOf(quoteChar);
+            const firstQuoteEndIndex = fullMatch.indexOf(quoteChar, firstQuoteIndex + 1);
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes, firstQuoteEndIndex + 1);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodFromView(document.uri, actionName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // @Html.BeginForm processing methods
+    private processHtmlBeginFormWithAction(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_BEGIN_FORM_WITH_ACTION_REGEX.lastIndex = 0;
+
+        while ((match = HTML_BEGIN_FORM_WITH_ACTION_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodFromView(document.uri, actionName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlBeginFormWithActionAndController(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
+
+        while ((match = HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const controllerName = match[2];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+            
+            // Also underline the controller name
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
+            
+            if (controllerStartInMatch !== -1) {
+                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+                
+                const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                
+                if (controllerPath) {
+                    // Create command URI for controller navigation
+                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
+            }
+        }
+    }
+
+    private processHtmlBeginFormWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_BEGIN_FORM_WITH_PARAMS_REGEX.lastIndex = 0;
+
+        while ((match = HTML_BEGIN_FORM_WITH_PARAMS_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const controllerName = match[2];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+            
+            // Also underline the controller name
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
+            
+            if (controllerStartInMatch !== -1) {
+                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+                
+                const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                
+                if (controllerPath) {
+                    // Create command URI for controller navigation
+                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
+            }
+        }
+    }
+
+    private processHtmlBeginFormWithAnonymousObject(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
+
+        while ((match = HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Find the exact position of the quoted action name

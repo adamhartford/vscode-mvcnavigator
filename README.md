@@ -6,8 +6,9 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 
 - **Ctrl+Click Navigation**: Navigate from controller actions to their corresponding views by Ctrl+clicking on view names in `View()` and `PartialView()` calls
 - **RedirectToAction Navigation**: Navigate to action methods by Ctrl+clicking on action names or controller names in `RedirectToAction()` calls
+- **Razor View Navigation**: Navigate to action methods from Razor views using `@Url.Action()`, `@Html.ActionLink()`, and `@Html.BeginForm()` calls
 - **Underlined View Names**: View names in `View("ViewName")` and `PartialView("_PartialName")` calls are automatically underlined and made clickable
-- **Underlined Action/Controller Names**: Action names and controller names in `RedirectToAction()` calls are automatically underlined and made clickable
+- **Underlined Action/Controller Names**: Action names and controller names in `RedirectToAction()`, `@Url.Action()`, `@Html.ActionLink()`, and `@Html.BeginForm()` calls are automatically underlined and made clickable
 - **Parameterless Call Support**: Both `View()` and `PartialView()` calls without parameters automatically resolve to action-named views
 - **Multi-Project Workspace Support**: Automatically detects and handles multiple ASP.NET MVC projects within a single VS Code workspace
 - **Smart Project Root Detection**: Intelligently identifies MVC project boundaries by looking for .csproj files, Views folders, Controllers folders, and other MVC indicators
@@ -27,6 +28,14 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 3. The view name, action name, or controller name will be automatically underlined
 4. Ctrl+click on the name to navigate to the corresponding `.cshtml`/`.razor` file or action method
 5. Alternatively, use the command palette and search for "Navigate to View" when your cursor is on a line with a View(), PartialView(), or RedirectToAction() call
+
+### For Razor Views
+
+1. Open any `.cshtml` or `.razor` view file in your ASP.NET MVC project
+2. Locate a `@Url.Action()`, `@Html.ActionLink()`, or `@Html.BeginForm()` call with action names, e.g., `@Url.Action("About", "Home")`, `@Html.ActionLink("Link Text", "About", "Home")`, or `@Html.BeginForm("Submit", "Home")`
+3. Note: `Html.BeginForm()` and `Html.ActionLink()` calls work both with and without the `@` prefix (e.g., within `@using` blocks)
+4. The action name and controller name will be automatically underlined
+5. Ctrl+click on the action or controller name to navigate to the corresponding action method or controller file
 
 ## Supported Call Patterns
 
@@ -96,6 +105,46 @@ RedirectToAction( "ActionName" , "ControllerName" ); // with spaces - Both parts
 **Parameterless View() Calls**: When you use `return View();` without specifying a view name, the extension automatically determines the view name based on the current action method name, following standard ASP.NET MVC conventions.
 
 **PartialView Support**: The extension fully supports `PartialView()` calls, both with explicit names and parameterless calls. Partial views are searched in controller-specific folders first, then in the Shared folder, which is the most common location for partial views.
+
+### @Url.Action() Patterns in Razor Views
+
+The extension also provides navigation for `@Url.Action()` calls in Razor views:
+
+```csharp
+@Url.Action("ActionName")                                    // Navigates to ActionName method in current controller
+@Url.Action("ActionName", "ControllerName")                 // Navigates to ActionName method in ControllerNameController
+@Url.Action("ActionName", "ControllerName", new { id = 1 }) // Both action and controller are clickable
+@Url.Action("ActionName", new { area = "" })                // Navigates to ActionName method with route values
+```
+
+### @Html.ActionLink() Patterns in Razor Views
+
+The extension supports navigation for `@Html.ActionLink()` calls in Razor views:
+
+```csharp
+@Html.ActionLink("Link Text", "ActionName")                           // Navigates to ActionName method in current controller
+@Html.ActionLink("Link Text", "ActionName", "ControllerName")         // Navigates to ActionName method in ControllerNameController
+@Html.ActionLink("Link Text", "ActionName", "ControllerName", new { id = 1 }) // Both action and controller are clickable
+@Html.ActionLink("Link Text", "ActionName", new { area = "" })        // Navigates to ActionName method with route values
+```
+
+### @Html.BeginForm() Patterns in Razor Views
+
+The extension supports navigation for `@Html.BeginForm()` calls in Razor views:
+
+```csharp
+@Html.BeginForm("ActionName")                                    // Navigates to ActionName method in current controller
+@Html.BeginForm("ActionName", "ControllerName")                 // Navigates to ActionName method in ControllerNameController
+@Html.BeginForm("ActionName", "ControllerName", new { id = 1 }) // Both action and controller are clickable
+@Html.BeginForm("ActionName", new { area = "" })                // Navigates to ActionName method with route values
+```
+
+**Razor View Navigation Features**:
+- **Action Names**: Ctrl+click on action names to navigate to the corresponding action method
+- **Controller Names**: Ctrl+click on controller names to navigate to the controller file
+- **Cross-Controller**: When both action and controller are specified, navigates to the target controller
+- **Route Values Support**: Works with calls that include route values (anonymous objects)
+- **Multiple HTML Helpers**: Supports @Url.Action, @Html.ActionLink, and @Html.BeginForm equally
 
 ## Multi-Project Workspace Support
 

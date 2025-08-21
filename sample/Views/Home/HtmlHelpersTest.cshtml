@@ -1,0 +1,89 @@
+@model dynamic
+
+<h2>@Html.ActionLink and @Html.BeginForm Navigation Test</h2>
+
+<h3>@Html.ActionLink Tests</h3>
+
+<div>
+    <!-- Test @Html.ActionLink with just action name -->
+    @Html.ActionLink("Navigate to Index", "Index")
+    <br />
+    
+    <!-- Test @Html.ActionLink with action and controller -->
+    @Html.ActionLink("Navigate to About", "About", "Home")
+    <br />
+    
+    <!-- Test @Html.ActionLink with action, controller and parameters -->
+    @Html.ActionLink("Navigate to Product Details", "Details", "Product", new { id = 1 })
+    <br />
+    
+    <!-- Test @Html.ActionLink with action and anonymous object -->
+    @Html.ActionLink("Navigate to Contact", "Contact", new { area = "" })
+    <br />
+    
+    <!-- Test @Html.ActionLink with different action -->
+    @Html.ActionLink("Navigate to Error", "ServerError", "Error")
+    <br />
+</div>
+
+<h3>@Html.BeginForm Tests</h3>
+
+<div>
+    <!-- Test @Html.BeginForm with just action name -->
+    @using (Html.BeginForm("Index"))
+    {
+        <p>Form submitting to Index action</p>
+        <input type="submit" value="Submit to Index" />
+    }
+    
+    <!-- Test @Html.BeginForm with action and controller -->
+    @using (Html.BeginForm("About", "Home"))
+    {
+        <p>Form submitting to About action in Home controller</p>
+        <input type="submit" value="Submit to About" />
+    }
+    
+    <!-- Test @Html.BeginForm with action, controller and parameters -->
+    @using (Html.BeginForm("Details", "Product", new { id = 2 }))
+    {
+        <p>Form submitting to Product Details with id=2</p>
+        <input type="submit" value="Submit to Product Details" />
+    }
+    
+    <!-- Test @Html.BeginForm with action and anonymous object -->
+    @using (Html.BeginForm("Contact", new { area = "" }))
+    {
+        <p>Form submitting to Contact with area parameter</p>
+        <input type="submit" value="Submit to Contact" />
+    }
+    
+    <!-- Test @Html.BeginForm with different controller -->
+    @using (Html.BeginForm("ServerError", "Error"))
+    {
+        <p>Form submitting to Error controller ServerError action</p>
+        <input type="submit" value="Submit to Error" />
+    }
+    
+    <!-- Test standalone @Html.BeginForm calls -->
+    <p>Standalone syntax examples:</p>
+    @Html.BeginForm("Index", "Home")
+    @Html.BeginForm("Details", "Product", new { id = 3 })
+</div>
+
+<h3>Mixed Tests</h3>
+
+<div>
+    <!-- Mix different HTML helpers in same section -->
+    <p>Navigation links:</p>
+    @Html.ActionLink("Home", "Index", "Home") |
+    @Html.ActionLink("Product List", "Index", "Product") |
+    @Html.ActionLink("Error Page", "Index", "Error")
+    
+    <div style="margin-top: 20px;">
+        @using (Html.BeginForm("AsyncAction", "Home"))
+        {
+            <p>Testing with AsyncAction method</p>
+            <input type="submit" value="Submit to Async Action" />
+        }
+    </div>
+</div>

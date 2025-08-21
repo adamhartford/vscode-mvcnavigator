@@ -71,9 +71,9 @@ namespace SampleMvcApp.Controllers
             return RedirectToAction("Contact");
         }
 
-        public IActionResult RedirectToDepartmentIndex()
+        public IActionResult RedirectToProductIndex()
         {
-            return RedirectToAction("Index", "Department");
+            return RedirectToAction("Index", "Product");
         }
 
         public IActionResult RedirectToErrorPage()
@@ -88,7 +88,7 @@ namespace SampleMvcApp.Controllers
 
         public IActionResult RedirectWithControllerAndRouteValues()
         {
-            return RedirectToAction("DepartmentDetails", "Department", new { id = 5 });
+            return RedirectToAction("Details", "Product", new { id = 5 });
         }
     }
 }

@@ -10,10 +10,54 @@
     <a href="@Url.Action("About", "Home")">About Page</a>
     
     <!-- Test @Url.Action with parameters -->
-    <a href="@Url.Action("Details", "Department", new { id = 1 })">Department Details</a>
+    <a href="@Url.Action("Details", "Product", new { id = 1 })">Product Details</a>
     
     <!-- Test @Url.Action with anonymous object -->
     <a href="@Url.Action("Contact", new { area = "" })">Contact</a>
+</div>
+
+<h2>@Html.ActionLink Navigation Test</h2>
+
+<div>
+    <!-- Test @Html.ActionLink with just action name -->
+    @Html.ActionLink("Home Index Link", "Index")
+    
+    <!-- Test @Html.ActionLink with action and controller -->
+    @Html.ActionLink("About Page Link", "About", "Home")
+    
+    <!-- Test @Html.ActionLink with parameters -->
+    @Html.ActionLink("Product Details Link", "Details", "Product", new { id = 1 })
+    
+    <!-- Test @Html.ActionLink with anonymous object -->
+    @Html.ActionLink("Contact Link", "Contact", new { area = "" })
+</div>
+
+<h2>@Html.BeginForm Navigation Test</h2>
+
+<div>
+    <!-- Test @Html.BeginForm with just action name -->
+    @using (Html.BeginForm("Index"))
+    {
+        <input type="submit" value="Submit to Index" />
+    }
+    
+    <!-- Test @Html.BeginForm with action and controller -->
+    @using (Html.BeginForm("About", "Home"))
+    {
+        <input type="submit" value="Submit to About" />
+    }
+    
+    <!-- Test @Html.BeginForm with parameters -->
+    @using (Html.BeginForm("Details", "Product", new { id = 1 }))
+    {
+        <input type="submit" value="Submit to Product Details" />
+    }
+    
+    <!-- Test @Html.BeginForm with anonymous object -->
+    @using (Html.BeginForm("Contact", new { area = "" }))
+    {
+        <input type="submit" value="Submit to Contact" />
+    }
 </div>
 
 <script>
