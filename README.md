@@ -93,6 +93,8 @@ return RedirectToAction("ActionName");           // Navigates to ActionName meth
 return RedirectToAction("ActionName", "ControllerName");  // Navigates to ActionName method in ControllerNameController
 return RedirectToAction("ActionName", "ControllerName", new { id = 1 });  // Both action and controller are clickable
 return RedirectToAction("ActionName", new { id = 1, category = "test" });  // Navigates to ActionName method in same controller
+return RedirectToAction("ActionName", "ControllerName", new { area = "Admin" });  // Area-aware navigation
+return RedirectToAction("Index", "Home", new { area = "Area1", id = 5 });  // Navigates to correct area
 RedirectToAction("ActionName")                   // Navigates to ActionName method
 RedirectToAction( "ActionName" , "ControllerName" ); // with spaces - Both parts are clickable
 ```
@@ -103,7 +105,15 @@ RedirectToAction( "ActionName" , "ControllerName" ); // with spaces - Both parts
 - **Same Controller**: When only action name is specified, searches within the current controller
 - **Cross-Controller**: When both action and controller are specified, navigates to the target controller
 - **Route Values Support**: Works with RedirectToAction calls that include route values (anonymous objects)
+- **Area-Aware Navigation**: When `area = "AreaName"` is specified in route values, navigates to the controller in the correct area folder
 - **Precise Navigation**: Navigates directly to the action method line, not just the file
+
+**Area Support**: The extension intelligently detects area information from route values:
+```csharp
+return RedirectToAction("Index", "Home", new { area = "Admin" });      // → Areas/Admin/Controllers/HomeController.cs
+return RedirectToAction("Create", "User", new { area = "Management" }); // → Areas/Management/Controllers/UserController.cs
+return RedirectToAction("List", "Product", new { area = "Catalog", page = 1 }); // → Areas/Catalog/Controllers/ProductController.cs
+```
 
 **Parameterless View() Calls**: When you use `return View();` without specifying a view name, the extension automatically determines the view name based on the current action method name, following standard ASP.NET MVC conventions.
 

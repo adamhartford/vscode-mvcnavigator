@@ -26,6 +26,9 @@ const REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /\bRedirectToAction\
 const REDIRECT_TO_ACTION_WITH_PARAMS_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
 const REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
 
+// Regular expressions to match RedirectToAction() calls with area in route values
+const REDIRECT_TO_ACTION_WITH_AREA_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
+
 // Regular expressions to match @Url.Action() calls in Razor views
 const URL_ACTION_WITH_ACTION_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*\)/g;
 const URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
@@ -108,6 +111,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
         // Handle RedirectToAction("ActionName", routeValues) calls
         this.processRedirectToActionWithAnonymousObject(document, text, links);
+
+        // Handle RedirectToAction with area in route values
+        this.processRedirectToActionWithArea(document, text, links);
     }
 
     private processRazorNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
@@ -548,6 +554,60 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             //     link.tooltip = `Navigate to ${actionName} action method`;
             //     links.push(link);
             // }
+        }
+    }
+
+    private processRedirectToActionWithArea(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        REDIRECT_TO_ACTION_WITH_AREA_REGEX.lastIndex = 0;
+
+        while ((match = REDIRECT_TO_ACTION_WITH_AREA_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const controllerName = match[2];
+            const areaName = match[3];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            let quoteChar = fullMatch.includes('"') ? '"' : "'";
+            let actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            let actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation to action
+                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method in ${controllerName}Controller (Area: ${areaName}, line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+            
+            // Also handle controller name navigation
+            quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            const controllerStartInMatch = fullMatch.lastIndexOf(controllerNameWithQuotes);
+            
+            if (controllerStartInMatch !== -1) {
+                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+                
+                const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                const controllerPath = this.findControllerFileInArea(document.uri, controllerName, areaName);
+                
+                if (controllerPath) {
+                    // Create command URI for navigation to controller
+                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class (Area: ${areaName})`;
+                    links.push(controllerLink);
+                }
+            }
         }
     }
 
@@ -1512,6 +1572,55 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         return null;
     }
 
+    // Extract area information from route values in RedirectToAction calls
+    private extractAreaFromRouteValues(routeValuesText: string): string | null {
+        // Match patterns like: new { area = "Admin" }, new { area = "Catalog", id = 1 }, etc.
+        const areaMatch = routeValuesText.match(/area\s*=\s*["']([^"']+)["']/);
+        return areaMatch ? areaMatch[1] : null;
+    }
+
+    // Find controller in a specific area
+    private findControllerFileInArea(currentControllerUri: vscode.Uri, controllerName: string, areaName: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentControllerUri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        // Find potential MVC project roots
+        const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, currentControllerUri.fsPath);
+        
+        for (const projectRoot of projectRoots) {
+            const areaControllerPath = path.join(projectRoot, 'Areas', areaName, 'Controllers', `${controllerName}Controller.cs`);
+            if (fs.existsSync(areaControllerPath)) {
+                return areaControllerPath;
+            }
+        }
+
+        return null;
+    }
+
+    // Area-aware action method finder
+    private findActionMethodInControllerWithArea(currentControllerUri: vscode.Uri, actionName: string, controllerName: string, areaName?: string): { filePath: string; lineNumber?: number } | null {
+        let targetControllerPath: string | null = null;
+
+        if (areaName) {
+            // First try to find controller in the specific area
+            targetControllerPath = this.findControllerFileInArea(currentControllerUri, controllerName, areaName);
+        }
+
+        if (!targetControllerPath) {
+            // Fall back to general controller search if area-specific search fails
+            targetControllerPath = this.findControllerFile(currentControllerUri, controllerName);
+        }
+
+        if (!targetControllerPath) {
+            return null;
+        }
+
+        // Search for the action method in the target controller
+        return this.searchActionInFile(targetControllerPath, actionName);
+    }
+
     private searchActionInFile(filePath: string, actionName: string): { filePath: string; lineNumber?: number } | null {
         try {
             if (!fs.existsSync(filePath)) {
@@ -1855,6 +1964,33 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             } else {
                 vscode.window.showWarningMessage(`Could not find action method: ${actionName}`);
+            }
+            return;
+        }
+
+        // Look for RedirectToAction() call with area in route values first (most specific)
+        const redirectToActionWithAreaMatch = lineText.match(/\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/);
+        if (redirectToActionWithAreaMatch) {
+            const actionName = redirectToActionWithAreaMatch[1];
+            const controllerName = redirectToActionWithAreaMatch[2];
+            const areaName = redirectToActionWithAreaMatch[3];
+            const linkProvider = new MvcDocumentLinkProvider();
+            const actionPath = (linkProvider as any).findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+            
+            if (actionPath) {
+                const actionUri = vscode.Uri.file(actionPath.filePath);
+                const documentToOpen = await vscode.workspace.openTextDocument(actionUri);
+                if (actionPath.lineNumber) {
+                    const position = new vscode.Position(actionPath.lineNumber - 1, 0);
+                    const range = new vscode.Range(position, position);
+                    await vscode.window.showTextDocument(documentToOpen, {
+                        selection: range
+                    });
+                } else {
+                    await vscode.window.showTextDocument(documentToOpen);
+                }
+            } else {
+                vscode.window.showWarningMessage(`Could not find action method: ${actionName} in ${controllerName}Controller (Area: ${areaName})`);
             }
             return;
         }
