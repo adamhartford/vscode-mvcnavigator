@@ -9,3 +9,10 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+# Test files (keep in repo but exclude from package)
+regex-test.js
+test-*.js
+
+# Generated package
+*.vsix
