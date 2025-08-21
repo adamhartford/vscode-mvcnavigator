@@ -163,11 +163,14 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             controllerName = controllerName.substring(0, controllerName.length - 'Controller'.length);
         }
 
+        // Detect if this controller is in an Area
+        const areaInfo = this.detectAreaFromControllerPath(controllerUri.fsPath);
+
         // Find potential MVC project roots
         const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, controllerUri.fsPath);
         
         for (const projectRoot of projectRoots) {
-            const viewPath = this.searchViewInProject(projectRoot, controllerName, viewName);
+            const viewPath = this.searchViewInProject(projectRoot, controllerName, viewName, areaInfo);
             if (viewPath) {
                 return viewPath;
             }
@@ -191,16 +194,36 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             controllerName = controllerName.substring(0, controllerName.length - 'Controller'.length);
         }
 
+        // Detect if this controller is in an Area
+        const areaInfo = this.detectAreaFromControllerPath(controllerUri.fsPath);
+
         // Find potential MVC project roots
         const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, controllerUri.fsPath);
         
         for (const projectRoot of projectRoots) {
-            const viewPath = this.searchPartialViewInProject(projectRoot, controllerName, partialViewName);
+            const viewPath = this.searchPartialViewInProject(projectRoot, controllerName, partialViewName, areaInfo);
             if (viewPath) {
                 return viewPath;
             }
         }
 
+        return null;
+    }
+
+    private detectAreaFromControllerPath(controllerPath: string): { areaName: string; isAreaController: boolean } | null {
+        // Check if the controller is in an Area by examining the path
+        // Standard Area path: .../Areas/{AreaName}/Controllers/{Controller}.cs
+        const pathParts = controllerPath.replace(/\\/g, '/').split('/');
+        
+        for (let i = 0; i < pathParts.length - 2; i++) {
+            if (pathParts[i].toLowerCase() === 'areas' && pathParts[i + 2].toLowerCase() === 'controllers') {
+                return {
+                    areaName: pathParts[i + 1],
+                    isAreaController: true
+                };
+            }
+        }
+        
         return null;
     }
 
@@ -249,28 +272,49 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         }
     }
 
-    private searchViewInProject(projectRoot: string, controllerName: string, viewName: string): string | null {
-        // Common MVC view folder patterns within a specific project
-        const possibleViewPaths = [
-            // Standard MVC structure
-            path.join(projectRoot, 'Views', controllerName, `${viewName}.cshtml`),
-            path.join(projectRoot, 'Views', controllerName, `${viewName}.razor`),
-            
-            // Shared views
-            path.join(projectRoot, 'Views', 'Shared', `${viewName}.cshtml`),
-            path.join(projectRoot, 'Views', 'Shared', `${viewName}.razor`),
-            
-            // Areas structure
-            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.cshtml`),
-            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.razor`),
-            
-            // Web project structure
-            path.join(projectRoot, 'wwwroot', 'Views', controllerName, `${viewName}.cshtml`),
-            
-            // Different project structures within the project
-            path.join(projectRoot, 'src', 'Views', controllerName, `${viewName}.cshtml`),
-            path.join(projectRoot, 'Web', 'Views', controllerName, `${viewName}.cshtml`),
-        ];
+    private searchViewInProject(projectRoot: string, controllerName: string, viewName: string, areaInfo: { areaName: string; isAreaController: boolean } | null = null): string | null {
+        let possibleViewPaths: string[] = [];
+
+        if (areaInfo && areaInfo.isAreaController) {
+            // If this is an Area controller, prioritize Area-specific paths
+            possibleViewPaths = [
+                // Area-specific views
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', controllerName, `${viewName}.cshtml`),
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', controllerName, `${viewName}.razor`),
+                
+                // Area shared views
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', 'Shared', `${viewName}.cshtml`),
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', 'Shared', `${viewName}.razor`),
+                
+                // Fallback to main shared views
+                path.join(projectRoot, 'Views', 'Shared', `${viewName}.cshtml`),
+                path.join(projectRoot, 'Views', 'Shared', `${viewName}.razor`),
+            ];
+        } else {
+            // Standard MVC view folder patterns within a specific project
+            possibleViewPaths = [
+                // Standard MVC structure
+                path.join(projectRoot, 'Views', controllerName, `${viewName}.cshtml`),
+                path.join(projectRoot, 'Views', controllerName, `${viewName}.razor`),
+                
+                // Shared views
+                path.join(projectRoot, 'Views', 'Shared', `${viewName}.cshtml`),
+                path.join(projectRoot, 'Views', 'Shared', `${viewName}.razor`),
+                
+                // Also search in all Areas as fallback for non-area controllers
+                path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.cshtml`),
+                path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.razor`),
+                path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${viewName}.cshtml`),
+                path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${viewName}.razor`),
+                
+                // Web project structure
+                path.join(projectRoot, 'wwwroot', 'Views', controllerName, `${viewName}.cshtml`),
+                
+                // Different project structures within the project
+                path.join(projectRoot, 'src', 'Views', controllerName, `${viewName}.cshtml`),
+                path.join(projectRoot, 'Web', 'Views', controllerName, `${viewName}.cshtml`),
+            ];
+        }
 
         // Check each possible path
         for (const viewPath of possibleViewPaths) {
@@ -288,33 +332,56 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         return null;
     }
 
-    private searchPartialViewInProject(projectRoot: string, controllerName: string, partialViewName: string): string | null {
-        // Common MVC partial view folder patterns within a specific project
-        const possiblePartialViewPaths = [
-            // Controller-specific partials
-            path.join(projectRoot, 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'Views', controllerName, `${partialViewName}.razor`),
-            
-            // Shared partials (most common for partial views)
-            path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.razor`),
-            
-            // Areas structure
-            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.razor`),
-            path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.razor`),
-            
-            // Different project structures
-            path.join(projectRoot, 'src', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'src', 'Views', 'Shared', `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'Web', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'Web', 'Views', 'Shared', `${partialViewName}.cshtml`),
-            
-            // wwwroot structure
-            path.join(projectRoot, 'wwwroot', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(projectRoot, 'wwwroot', 'Views', 'Shared', `${partialViewName}.cshtml`),
-        ];
+    private searchPartialViewInProject(projectRoot: string, controllerName: string, partialViewName: string, areaInfo: { areaName: string; isAreaController: boolean } | null = null): string | null {
+        let possiblePartialViewPaths: string[] = [];
+
+        if (areaInfo && areaInfo.isAreaController) {
+            // If this is an Area controller, prioritize Area-specific paths
+            possiblePartialViewPaths = [
+                // Area-specific partials in controller folder
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', controllerName, `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', controllerName, `${partialViewName}.razor`),
+                
+                // Area shared partials (most common for partial views)
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', 'Shared', `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Areas', areaInfo.areaName, 'Views', 'Shared', `${partialViewName}.razor`),
+                
+                // Fallback to main shared partials
+                path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.razor`),
+                
+                // Fallback to main controller-specific partials
+                path.join(projectRoot, 'Views', controllerName, `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Views', controllerName, `${partialViewName}.razor`),
+            ];
+        } else {
+            // Common MVC partial view folder patterns within a specific project
+            possiblePartialViewPaths = [
+                // Controller-specific partials
+                path.join(projectRoot, 'Views', controllerName, `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Views', controllerName, `${partialViewName}.razor`),
+                
+                // Shared partials (most common for partial views)
+                path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.razor`),
+                
+                // Areas structure
+                path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.razor`),
+                path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.razor`),
+                
+                // Different project structures
+                path.join(projectRoot, 'src', 'Views', controllerName, `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'src', 'Views', 'Shared', `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Web', 'Views', controllerName, `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'Web', 'Views', 'Shared', `${partialViewName}.cshtml`),
+                
+                // wwwroot structure
+                path.join(projectRoot, 'wwwroot', 'Views', controllerName, `${partialViewName}.cshtml`),
+                path.join(projectRoot, 'wwwroot', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            ];
+        }
 
         // Check each possible path
         for (const viewPath of possiblePartialViewPaths) {

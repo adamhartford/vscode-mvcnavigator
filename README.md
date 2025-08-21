@@ -79,9 +79,15 @@ WorkspaceRoot/
    - Looks for `.csproj` files, `Views` folders, `Controllers` folders, `Program.cs`, `Startup.cs`, or `wwwroot` folders
    - Identifies the correct project boundary
 
-2. **Project-Relative Path Resolution**: Views are searched relative to the detected project root, not the workspace root
+2. **Area-Aware Navigation**: The extension automatically detects if a controller is in an Area:
+   - Recognizes Area path patterns: `Areas/{AreaName}/Controllers/{Controller}.cs`
+   - Prioritizes Area-specific view locations: `Areas/{AreaName}/Views/{Controller}/{View}.cshtml`
+   - Falls back to Area shared views: `Areas/{AreaName}/Views/Shared/{View}.cshtml`
+   - Provides fallback to main shared views when needed
 
-3. **Isolated Project Navigation**: Controllers in Project1 will only navigate to views within Project1's structure, preventing cross-project confusion
+3. **Project-Relative Path Resolution**: Views are searched relative to the detected project root, not the workspace root
+
+4. **Isolated Project Navigation**: Controllers in Project1 will only navigate to views within Project1's structure, preventing cross-project confusion
 
 ## Project Structure Support
 
@@ -89,13 +95,57 @@ The extension automatically searches for view files in these locations:
 
 - `Views/{ControllerName}/{ViewName}.cshtml`
 - `Views/{ControllerName}/{ViewName}.razor`
-- `Areas/*/Views/{ControllerName}/{ViewName}.cshtml`
-- `Areas/*/Views/{ControllerName}/{ViewName}.razor`
+- `Areas/{AreaName}/Views/{ControllerName}/{ViewName}.cshtml` (for Area controllers)
+- `Areas/{AreaName}/Views/{ControllerName}/{ViewName}.razor` (for Area controllers)
+- `Areas/{AreaName}/Views/Shared/{ViewName}.cshtml` (for Area controllers)
+- `Areas/{AreaName}/Views/Shared/{ViewName}.razor` (for Area controllers)
+- `Areas/*/Views/{ControllerName}/{ViewName}.cshtml` (fallback search)
+- `Areas/*/Views/{ControllerName}/{ViewName}.razor` (fallback search)
 - `Views/Shared/{ViewName}.cshtml`
 - `Views/Shared/{ViewName}.razor`
 - `wwwroot/Views/{ControllerName}/{ViewName}.cshtml`
 - `src/Views/{ControllerName}/{ViewName}.cshtml`
 - `Web/Views/{ControllerName}/{ViewName}.cshtml`
+
+## Areas Support
+
+The extension provides full support for ASP.NET MVC Areas with intelligent path resolution:
+
+### Area Controller Detection
+- Automatically detects when a controller is in an Area by analyzing the file path
+- Recognizes the pattern: `Areas/{AreaName}/Controllers/{Controller}.cs`
+
+### Area View Resolution Priority
+For Area controllers (e.g., `Areas/Admin/Controllers/UsersController.cs`):
+1. **Area-specific views**: `Areas/Admin/Views/Users/{ViewName}.cshtml`
+2. **Area shared views**: `Areas/Admin/Views/Shared/{ViewName}.cshtml`
+3. **Main shared views**: `Views/Shared/{ViewName}.cshtml` (fallback)
+
+### Example Area Structure
+```
+Project/
+├── Areas/
+│   ├── Admin/
+│   │   ├── Controllers/
+│   │   │   └── UsersController.cs
+│   │   └── Views/
+│   │       ├── Users/
+│   │       │   ├── Index.cshtml
+│   │       │   └── Details.cshtml
+│   │       └── Shared/
+│   │           └── _AdminLayout.cshtml
+│   └── Catalog/
+│       ├── Controllers/
+│       │   └── ProductsController.cs
+│       └── Views/
+│           ├── Products/
+│           │   └── Index.cshtml
+│           └── Shared/
+│               └── _CatalogPartial.cshtml
+└── Views/
+    └── Shared/
+        └── _Layout.cshtml
+```
 
 ## Requirements
 
@@ -109,8 +159,8 @@ The extension automatically searches for view files in these locations:
 
 ## Known Issues
 
-- Areas support uses wildcard matching which may have performance implications in very large projects
 - Method name detection for parameterless View() calls works with standard method patterns but may not work with very complex method signatures
+- Area detection relies on standard ASP.NET MVC folder conventions
 
 ## Release Notes
 
