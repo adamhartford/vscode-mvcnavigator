@@ -53,6 +53,25 @@ PartialView("_PartialName")            // Navigates to _PartialName.cshtml
 
 **View() with Model Support**: The extension now supports View() and PartialView() calls that pass model objects or create new instances. These are treated as convention-based calls where the view name matches the action method name.
 
+### Full Path Support for View() and PartialView()
+
+The extension supports full path navigation for View() and PartialView() calls with absolute paths:
+
+```csharp
+return View("~/Views/Home/About.cshtml");                    // Navigates to the exact file
+return View("~/Areas/Admin/Views/Users/Index.cshtml");       // Navigates to area-specific view
+return PartialView("~/Views/Shared/_UserInfo.cshtml");       // Navigates to shared partial view
+return View("~/Views/Home/Index.cshtml", model);             // Full path with model
+return PartialView("~/Views/Shared/_Comments.cshtml", model); // Full path partial with model
+```
+
+**Full Path Features**:
+- **Absolute Path Navigation**: Paths starting with `~/` are resolved relative to the project root
+- **Area Support**: Works with Areas-based paths like `~/Areas/AreaName/Views/...`
+- **Multiple Extensions**: Supports both `.cshtml` and `.razor` file extensions
+- **Cross-Project**: Searches across multiple project roots in the workspace
+- **Mixed Usage**: Can be used alongside regular view names in the same controller
+
 ### RedirectToAction() Patterns
 
 The extension recognizes various patterns of RedirectToAction() calls:

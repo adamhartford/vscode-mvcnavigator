@@ -1,7 +1,7 @@
 {
   "name": "vscode-mvcnavigator",
   "displayName": "ASP.NET MVC Navigator",
-  "description": "Navigate between controllers, views, and actions in ASP.NET MVC projects. Supports View(), PartialView(), and RedirectToAction() navigation.",
+  "description": "Navigate between controllers, views, and actions in ASP.NET MVC projects. Supports View(), PartialView(), RedirectToAction() navigation, and full path navigation (~/Views/...).",
   "version": "0.0.1",
   "publisher": "your-publisher-name",
   "engines": {

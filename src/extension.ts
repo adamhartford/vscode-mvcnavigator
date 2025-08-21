@@ -16,6 +16,10 @@ const PARTIAL_VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX = /\bPartialView\s*\(\s*["'](
 const PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX = /\bPartialView\s*\(\s*\)/g;
 const PARTIAL_VIEW_CALL_WITH_MODEL_REGEX = /\bPartialView\s*\(\s*(?!["'])[^)]+\)/g; // PartialView(model) or PartialView(new Model{...})
 
+// Regular expressions to match View() and PartialView() calls with full paths
+const VIEW_CALL_WITH_FULL_PATH_REGEX = /\b(View|PartialView)\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
+const VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX = /\b(View|PartialView)\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
+
 // Regular expressions to match RedirectToAction() calls
 const REDIRECT_TO_ACTION_WITH_ACTION_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*\)/g;
 const REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
@@ -57,6 +61,12 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
         // Handle PartialView(model) calls (treated as parameterless for view resolution)
         this.processPartialViewCallsWithModel(document, text, links);
+
+        // Handle View() and PartialView() calls with full paths
+        this.processViewCallsWithFullPath(document, text, links);
+        
+        // Handle View() and PartialView() calls with full paths and parameters
+        this.processViewCallsWithFullPathAndParams(document, text, links);
 
         // Handle RedirectToAction("ActionName") calls
         this.processRedirectToActionWithAction(document, text, links);
@@ -243,6 +253,66 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 if (viewPath) {
                     const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
                     link.tooltip = `Navigate to ${actionName}.cshtml (PartialView with model)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processViewCallsWithFullPath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        VIEW_CALL_WITH_FULL_PATH_REGEX.lastIndex = 0;
+
+        while ((match = VIEW_CALL_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
+            const viewType = match[1]; // "View" or "PartialView"
+            const fullPath = match[2]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${fullPath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(fullPath)} (${viewType} with full path)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processViewCallsWithFullPathAndParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX.lastIndex = 0;
+
+        while ((match = VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX.exec(text)) !== null) {
+            const viewType = match[1]; // "View" or "PartialView"
+            const fullPath = match[2]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${fullPath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(fullPath)} (${viewType} with full path and parameters)`;
                     links.push(link);
                 }
             }
@@ -844,6 +914,46 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         
         return null;
     }
+
+    private resolveFullViewPath(controllerUri: vscode.Uri, fullPath: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(controllerUri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        // Convert ASP.NET virtual path to file system path
+        // Examples:
+        // ~/Areas/MyArea/Views/MyController/_MyPartial.cshtml
+        // ~/Views/Shared/_Layout.cshtml
+        // ~/Views/Home/Index.cshtml
+        
+        let relativePath = fullPath;
+        
+        // Remove the leading ~/ if present
+        if (relativePath.startsWith('~/')) {
+            relativePath = relativePath.substring(2);
+        }
+        
+        // Find potential MVC project roots
+        const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, controllerUri.fsPath);
+        
+        for (const projectRoot of projectRoots) {
+            // Try the path directly under the project root
+            const fullFilePath = path.join(projectRoot, relativePath);
+            if (fs.existsSync(fullFilePath)) {
+                return fullFilePath;
+            }
+            
+            // Also try with different path separators (handle both / and \)
+            const normalizedPath = relativePath.replace(/\//g, path.sep);
+            const normalizedFullPath = path.join(projectRoot, normalizedPath);
+            if (fs.existsSync(normalizedFullPath)) {
+                return normalizedFullPath;
+            }
+        }
+        
+        return null;
+    }
 }
 
 // This method is called when your extension is activated
@@ -915,14 +1025,29 @@ export function activate(context: vscode.ExtensionContext) {
         const namedViewMatch = lineText.match(/\bView\s*\(\s*["']([^"']+)["']\s*(?:,\s*[^)]+)?\)/);
         if (namedViewMatch) {
             const viewName = namedViewMatch[1];
-            const linkProvider = new MvcDocumentLinkProvider();
-            const viewPath = (linkProvider as any).findViewFile(document.uri, viewName);
             
-            if (viewPath) {
-                const viewUri = vscode.Uri.file(viewPath);
-                await vscode.window.showTextDocument(viewUri);
+            // Check if this is a full path (starts with ~/)
+            if (viewName.startsWith('~/')) {
+                const linkProvider = new MvcDocumentLinkProvider();
+                const resolvedPath = (linkProvider as any).resolveFullViewPath(document.uri, viewName);
+                
+                if (resolvedPath) {
+                    const viewUri = vscode.Uri.file(resolvedPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find view file for full path: ${viewName}`);
+                }
             } else {
-                vscode.window.showWarningMessage(`Could not find view file for: ${viewName}`);
+                // Handle regular view name
+                const linkProvider = new MvcDocumentLinkProvider();
+                const viewPath = (linkProvider as any).findViewFile(document.uri, viewName);
+                
+                if (viewPath) {
+                    const viewUri = vscode.Uri.file(viewPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find view file for: ${viewName}`);
+                }
             }
             return;
         }
@@ -931,14 +1056,29 @@ export function activate(context: vscode.ExtensionContext) {
         const namedPartialViewMatch = lineText.match(/\bPartialView\s*\(\s*["']([^"']+)["']\s*(?:,\s*[^)]+)?\)/);
         if (namedPartialViewMatch) {
             const partialViewName = namedPartialViewMatch[1];
-            const linkProvider = new MvcDocumentLinkProvider();
-            const viewPath = (linkProvider as any).findPartialViewFile(document.uri, partialViewName);
             
-            if (viewPath) {
-                const viewUri = vscode.Uri.file(viewPath);
-                await vscode.window.showTextDocument(viewUri);
+            // Check if this is a full path (starts with ~/)
+            if (partialViewName.startsWith('~/')) {
+                const linkProvider = new MvcDocumentLinkProvider();
+                const resolvedPath = (linkProvider as any).resolveFullViewPath(document.uri, partialViewName);
+                
+                if (resolvedPath) {
+                    const viewUri = vscode.Uri.file(resolvedPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find partial view file for full path: ${partialViewName}`);
+                }
             } else {
-                vscode.window.showWarningMessage(`Could not find partial view file for: ${partialViewName}`);
+                // Handle regular partial view name
+                const linkProvider = new MvcDocumentLinkProvider();
+                const viewPath = (linkProvider as any).findPartialViewFile(document.uri, partialViewName);
+                
+                if (viewPath) {
+                    const viewUri = vscode.Uri.file(viewPath);
+                    await vscode.window.showTextDocument(viewUri);
+                } else {
+                    vscode.window.showWarningMessage(`Could not find partial view file for: ${partialViewName}`);
+                }
             }
             return;
         }
