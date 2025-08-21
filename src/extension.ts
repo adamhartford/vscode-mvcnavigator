@@ -23,8 +23,9 @@ const VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX = /\b(View|PartialView)\s*\(\s*[
 // Regular expressions to match RedirectToAction() calls
 const REDIRECT_TO_ACTION_WITH_ACTION_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*\)/g;
 const REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
-const REDIRECT_TO_ACTION_WITH_PARAMS_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
-const REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
+const REDIRECT_TO_ACTION_WITH_PARAMS_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*(?:new\s*\{(?![^}]*area\s*=)[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
+const REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*(?:(?!new\s*\{[^}]*area\s*=)new\s*\{[^}]+\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
+const REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
 
 // Regular expressions to match RedirectToAction() calls with area in route values
 const REDIRECT_TO_ACTION_WITH_AREA_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
@@ -48,6 +49,28 @@ const HTML_BEGIN_FORM_WITH_PARAMS_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)
 const HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
 
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
+    public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number }>();
+    
+    // Helper method to create action command URIs with proper parameter handling
+    private createActionCommandUri(filePath: string, lineNumber?: number): vscode.Uri {
+        const linkId = `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.pendingNavigations.set(linkId, { 
+            type: 'action', 
+            path: filePath, 
+            lineNumber: lineNumber 
+        });
+        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([linkId]))}`);
+    }
+    
+    // Helper method to create controller command URIs with proper parameter handling
+    private createControllerCommandUri(filePath: string): vscode.Uri {
+        const linkId = `controller_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.pendingNavigations.set(linkId, { 
+            type: 'controller', 
+            path: filePath 
+        });
+        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([linkId]))}`);
+    }
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
         const links: vscode.DocumentLink[] = [];
@@ -100,20 +123,21 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle View() and PartialView() calls with full paths and parameters
         this.processViewCallsWithFullPathAndParams(document, text, links);
 
+        // Handle RedirectToAction with area in route values (FIRST - most specific)
+        this.processRedirectToActionWithArea(document, text, links);
+        this.processRedirectToActionWithAreaTwoParam(document, text, links);
+
         // Handle RedirectToAction("ActionName") calls
         this.processRedirectToActionWithAction(document, text, links);
 
         // Handle RedirectToAction("ActionName", "ControllerName") calls
         this.processRedirectToActionWithActionAndController(document, text, links);
 
-        // Handle RedirectToAction("ActionName", "ControllerName", routeValues) calls
+        // Handle RedirectToAction("ActionName", "ControllerName", routeValues) calls (excluding area patterns)
         this.processRedirectToActionWithParams(document, text, links);
 
         // Handle RedirectToAction("ActionName", routeValues) calls
         this.processRedirectToActionWithAnonymousObject(document, text, links);
-
-        // Handle RedirectToAction with area in route values
-        this.processRedirectToActionWithArea(document, text, links);
     }
 
     private processRazorNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
@@ -414,7 +438,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
@@ -581,7 +605,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (actionPath) {
                     // Create command URI for precise navigation to action
-                    const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([actionPath.filePath, actionPath.lineNumber]))}`);
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method in ${controllerName}Controller (Area: ${areaName}, line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
@@ -602,10 +626,48 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 if (controllerPath) {
                     // Create command URI for navigation to controller
-                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                    const controllerCommandUri = this.createControllerCommandUri(controllerPath);
                     const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
                     controllerLink.tooltip = `Navigate to ${controllerName}Controller class (Area: ${areaName})`;
                     links.push(controllerLink);
+                }
+            }
+        }
+    }
+
+    private processRedirectToActionWithAreaTwoParam(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX.lastIndex = 0;
+
+        while ((match = REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const areaName = match[2];
+            
+            // Extract controller name from current file
+            const currentController = this.extractControllerNameFromPath(document.uri.fsPath);
+            if (!currentController) {
+                continue;
+            }
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            let quoteChar = fullMatch.includes('"') ? '"' : "'";
+            let actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            let actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, currentController, areaName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation to action
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method in ${currentController}Controller (Area: ${areaName}, line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
                 }
             }
         }
@@ -1487,6 +1549,23 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         return null;
     }
 
+    private extractControllerNameFromPath(filePath: string): string | null {
+        // Handle controller paths like:
+        // - "/Controllers/HomeController.cs" -> "Home"
+        // - "/Areas/Admin/Controllers/UsersController.cs" -> "Users"
+        // - "/Project1/Controllers/ProductController.cs" -> "Product"
+        
+        const normalizedPath = filePath.replace(/\\/g, '/');
+        
+        // Match controller files
+        const controllerMatch = normalizedPath.match(/\/Controllers\/([^\/]+)Controller\.cs$/);
+        if (controllerMatch) {
+            return controllerMatch[1];
+        }
+        
+        return null;
+    }
+
     private findActionMethodInController(currentControllerUri: vscode.Uri, actionName: string, controllerName: string): { filePath: string; lineNumber?: number } | null {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentControllerUri);
         if (!workspaceFolder) {
@@ -1583,6 +1662,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     private findControllerFileInArea(currentControllerUri: vscode.Uri, controllerName: string, areaName: string): string | null {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentControllerUri);
         if (!workspaceFolder) {
+            console.log('No workspace folder found');
             return null;
         }
 
@@ -1734,8 +1814,38 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Register custom command for action navigation with line positioning
-    const disposableActionCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToAction', async (filePath: string, lineNumber?: number) => {
+    const disposableActionCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToAction', async (...args: any[]) => {
         try {
+            let filePath: string;
+            let lineNumber: number | undefined;
+            
+            // Handle different argument formats
+            if (args.length >= 1) {
+                const arg = args[0];
+                if (typeof arg === 'string') {
+                    // Check if it's a link ID or direct path
+                    if (linkProvider.pendingNavigations.has(arg)) {
+                        const navData = linkProvider.pendingNavigations.get(arg)!;
+                        filePath = navData.path;
+                        lineNumber = navData.lineNumber;
+                        // Clean up the stored navigation
+                        linkProvider.pendingNavigations.delete(arg);
+                    } else {
+                        // Direct path (legacy format)
+                        filePath = arg;
+                        lineNumber = args[1];
+                    }
+                } else {
+                    throw new Error(`Invalid argument type: ${typeof arg}`);
+                }
+            } else {
+                throw new Error('No arguments provided to navigateToAction command');
+            }
+            
+            if (!filePath || typeof filePath !== 'string') {
+                throw new Error(`Invalid filePath parameter: ${filePath} (type: ${typeof filePath})`);
+            }
+            
             const actionUri = vscode.Uri.file(filePath);
             const document = await vscode.workspace.openTextDocument(actionUri);
             
@@ -1754,8 +1864,37 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register custom command for controller navigation
-    const disposableControllerCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToController', async (filePath: string) => {
+    const disposableControllerCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToController', async (...args: any[]) => {
         try {
+            let filePath: string;
+            
+            // Handle different argument formats
+            if (args.length === 1) {
+                const arg = args[0];
+                if (typeof arg === 'string') {
+                    // Check if it's a link ID or direct path
+                    if (linkProvider.pendingNavigations.has(arg)) {
+                        const navData = linkProvider.pendingNavigations.get(arg)!;
+                        filePath = navData.path;
+                        // Clean up the stored navigation
+                        linkProvider.pendingNavigations.delete(arg);
+                    } else {
+                        // Direct path
+                        filePath = arg;
+                    }
+                } else {
+                    throw new Error(`Invalid argument type: ${typeof arg}`);
+                }
+            } else if (args.length > 1) {
+                filePath = args[0];
+            } else {
+                throw new Error('No arguments provided to navigateToController command');
+            }
+            
+            if (!filePath || typeof filePath !== 'string') {
+                throw new Error(`Invalid filePath parameter: ${filePath} (type: ${typeof filePath})`);
+            }
+            
             const controllerUri = vscode.Uri.file(filePath);
             
             // First, read the file content to find the class definition line
