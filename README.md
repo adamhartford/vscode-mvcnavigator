@@ -27,11 +27,14 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 The extension recognizes various patterns of View() calls:
 
 ```csharp
-return View("ViewName");
-return View("ViewName", model);
-View("ViewName")
-return View( "ViewName" );  // with spaces
+return View("ViewName");        // Navigates to ViewName.cshtml
+return View("ViewName", model); // Navigates to ViewName.cshtml  
+return View();                  // Navigates to {ActionName}.cshtml (follows MVC convention)
+View("ViewName")               // Navigates to ViewName.cshtml
+return View( "ViewName" );     // with spaces - Navigates to ViewName.cshtml
 ```
+
+**Parameterless View() Calls**: When you use `return View();` without specifying a view name, the extension automatically determines the view name based on the current action method name, following standard ASP.NET MVC conventions.
 
 ## Project Structure Support
 
@@ -59,8 +62,8 @@ The extension automatically searches for view files in these locations:
 
 ## Known Issues
 
-- Currently only supports explicit view names in quotes (does not support parameterless View() calls that use action name)
 - Areas support uses wildcard matching which may have performance implications in very large projects
+- Method name detection for parameterless View() calls works with standard method patterns but may not work with very complex method signatures
 
 ## Release Notes
 
