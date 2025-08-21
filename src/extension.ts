@@ -254,7 +254,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         REDIRECT_TO_ACTION_WITH_ACTION_REGEX.lastIndex = 0;
 
         while ((match = REDIRECT_TO_ACTION_WITH_ACTION_REGEX.exec(text)) !== null) {
-            /*const actionName = match[1];
+            const actionName = match[1];
             
             // Find the exact position of the quoted action name
             const fullMatch = match[0];
@@ -277,20 +277,20 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
                 }
-            }*/
-
-            const actionName = match[1];
-            const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
-            const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
-            
-            const range = new vscode.Range(startPos, endPos);
-            const actionPath = this.findActionMethod(document.uri, actionName);
-            
-            if (actionPath) {
-                const link = new vscode.DocumentLink(range, vscode.Uri.file(actionPath.filePath));
-                link.tooltip = `Navigate to ${actionName} action method`;
-                links.push(link);
             }
+
+            // const actionName = match[1];
+            // const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
+            // const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
+            
+            // const range = new vscode.Range(startPos, endPos);
+            // const actionPath = this.findActionMethod(document.uri, actionName);
+            
+            // if (actionPath) {
+            //     const link = new vscode.DocumentLink(range, vscode.Uri.file(actionPath.filePath));
+            //     link.tooltip = `Navigate to ${actionName} action method`;
+            //     links.push(link);
+            // }
         }
     }
 
@@ -375,7 +375,7 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
 
         while ((match = REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
-            /*const actionName = match[1];
+            const actionName = match[1];
             
             // Find the exact position of the quoted action name
             const fullMatch = match[0];
@@ -397,20 +397,20 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                     link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
                 }
-            }*/
-
-            const actionName = match[1];
-            const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
-            const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
-            
-            const range = new vscode.Range(startPos, endPos);
-            const actionPath = this.findActionMethod(document.uri, actionName);
-            
-            if (actionPath) {
-                const link = new vscode.DocumentLink(range, vscode.Uri.file(actionPath.filePath));
-                link.tooltip = `Navigate to ${actionName} action method`;
-                links.push(link);
             }
+
+            // const actionName = match[1];
+            // const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
+            // const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
+            
+            // const range = new vscode.Range(startPos, endPos);
+            // const actionPath = this.findActionMethod(document.uri, actionName);
+            
+            // if (actionPath) {
+            //     const link = new vscode.DocumentLink(range, vscode.Uri.file(actionPath.filePath));
+            //     link.tooltip = `Navigate to ${actionName} action method`;
+            //     links.push(link);
+            // }
         }
     }
 
