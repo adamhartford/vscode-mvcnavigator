@@ -163,54 +163,12 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             controllerName = controllerName.substring(0, controllerName.length - 'Controller'.length);
         }
 
-        const workspaceRoot = workspaceFolder.uri.fsPath;
+        // Find potential MVC project roots
+        const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, controllerUri.fsPath);
         
-        // Common MVC view folder patterns
-        const possibleViewPaths = [
-            // Standard MVC structure
-            path.join(workspaceRoot, 'Views', controllerName, `${viewName}.cshtml`),
-            path.join(workspaceRoot, 'Views', controllerName, `${viewName}.razor`),
-            
-            // Areas structure
-            path.join(workspaceRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.cshtml`),
-            path.join(workspaceRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.razor`),
-            
-            // Shared views
-            path.join(workspaceRoot, 'Views', 'Shared', `${viewName}.cshtml`),
-            path.join(workspaceRoot, 'Views', 'Shared', `${viewName}.razor`),
-            
-            // Web project structure
-            path.join(workspaceRoot, 'wwwroot', 'Views', controllerName, `${viewName}.cshtml`),
-            
-            // Different project structures
-            path.join(workspaceRoot, 'src', 'Views', controllerName, `${viewName}.cshtml`),
-            path.join(workspaceRoot, 'Web', 'Views', controllerName, `${viewName}.cshtml`),
-        ];
-
-        // Check each possible path
-        for (const viewPath of possibleViewPaths) {
-            if (viewPath.includes('*')) {
-                // Handle Areas wildcard
-                const basePath = path.dirname(viewPath);
-                const pattern = path.basename(viewPath);
-                try {
-                    const areasPath = path.dirname(basePath);
-                    if (fs.existsSync(areasPath)) {
-                        const areas = fs.readdirSync(areasPath, { withFileTypes: true })
-                            .filter(dirent => dirent.isDirectory())
-                            .map(dirent => dirent.name);
-                        
-                        for (const area of areas) {
-                            const areaViewPath = path.join(areasPath, area, 'Views', controllerName, pattern);
-                            if (fs.existsSync(areaViewPath)) {
-                                return areaViewPath;
-                            }
-                        }
-                    }
-                } catch (error) {
-                    // Continue to next path
-                }
-            } else if (fs.existsSync(viewPath)) {
+        for (const projectRoot of projectRoots) {
+            const viewPath = this.searchViewInProject(projectRoot, controllerName, viewName);
+            if (viewPath) {
                 return viewPath;
             }
         }
@@ -233,70 +191,175 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             controllerName = controllerName.substring(0, controllerName.length - 'Controller'.length);
         }
 
-        const workspaceRoot = workspaceFolder.uri.fsPath;
+        // Find potential MVC project roots
+        const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, controllerUri.fsPath);
         
-        // Common MVC partial view folder patterns
-        // Partial views often start with underscore and can be in various locations
-        const possiblePartialViewPaths = [
-            // Controller-specific partials
-            path.join(workspaceRoot, 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'Views', controllerName, `${partialViewName}.razor`),
+        for (const projectRoot of projectRoots) {
+            const viewPath = this.searchPartialViewInProject(projectRoot, controllerName, partialViewName);
+            if (viewPath) {
+                return viewPath;
+            }
+        }
+
+        return null;
+    }
+
+    private findMvcProjectRoots(workspaceRoot: string, controllerPath: string): string[] {
+        const projectRoots: string[] = [];
+        
+        // Start from the controller's directory and walk up to find potential project roots
+        let currentDir = path.dirname(controllerPath);
+        
+        while (currentDir !== workspaceRoot && currentDir !== path.dirname(currentDir)) {
+            // Check if this directory looks like an MVC project root
+            if (this.isMvcProjectRoot(currentDir)) {
+                projectRoots.push(currentDir);
+            }
+            currentDir = path.dirname(currentDir);
+        }
+        
+        // Also check the workspace root itself
+        if (this.isMvcProjectRoot(workspaceRoot)) {
+            projectRoots.push(workspaceRoot);
+        }
+        
+        // If no project roots found, fall back to workspace root
+        if (projectRoots.length === 0) {
+            projectRoots.push(workspaceRoot);
+        }
+        
+        return projectRoots;
+    }
+
+    private isMvcProjectRoot(directory: string): boolean {
+        try {
+            // Check for common MVC project indicators
+            const hasViews = fs.existsSync(path.join(directory, 'Views'));
+            const hasControllers = fs.existsSync(path.join(directory, 'Controllers'));
+            const hasCsproj = fs.readdirSync(directory).some(file => file.endsWith('.csproj'));
+            const hasProgram = fs.existsSync(path.join(directory, 'Program.cs'));
+            const hasStartup = fs.existsSync(path.join(directory, 'Startup.cs'));
+            const hasWwwroot = fs.existsSync(path.join(directory, 'wwwroot'));
             
-            // Shared partials (most common for partial views)
-            path.join(workspaceRoot, 'Views', 'Shared', `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'Views', 'Shared', `${partialViewName}.razor`),
+            // Consider it an MVC project if it has Views folder OR Controllers folder,
+            // AND at least one other MVC indicator
+            return (hasViews || hasControllers) && (hasCsproj || hasProgram || hasStartup || hasWwwroot);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    private searchViewInProject(projectRoot: string, controllerName: string, viewName: string): string | null {
+        // Common MVC view folder patterns within a specific project
+        const possibleViewPaths = [
+            // Standard MVC structure
+            path.join(projectRoot, 'Views', controllerName, `${viewName}.cshtml`),
+            path.join(projectRoot, 'Views', controllerName, `${viewName}.razor`),
+            
+            // Shared views
+            path.join(projectRoot, 'Views', 'Shared', `${viewName}.cshtml`),
+            path.join(projectRoot, 'Views', 'Shared', `${viewName}.razor`),
             
             // Areas structure
-            path.join(workspaceRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.razor`),
-            path.join(workspaceRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.razor`),
+            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.cshtml`),
+            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${viewName}.razor`),
             
-            // Different project structures
-            path.join(workspaceRoot, 'src', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'src', 'Views', 'Shared', `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'Web', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'Web', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            // Web project structure
+            path.join(projectRoot, 'wwwroot', 'Views', controllerName, `${viewName}.cshtml`),
             
-            // wwwroot structure
-            path.join(workspaceRoot, 'wwwroot', 'Views', controllerName, `${partialViewName}.cshtml`),
-            path.join(workspaceRoot, 'wwwroot', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            // Different project structures within the project
+            path.join(projectRoot, 'src', 'Views', controllerName, `${viewName}.cshtml`),
+            path.join(projectRoot, 'Web', 'Views', controllerName, `${viewName}.cshtml`),
         ];
 
         // Check each possible path
-        for (const viewPath of possiblePartialViewPaths) {
+        for (const viewPath of possibleViewPaths) {
             if (viewPath.includes('*')) {
                 // Handle Areas wildcard
-                const basePath = path.dirname(viewPath);
-                const pattern = path.basename(viewPath);
-                try {
-                    const areasPath = path.dirname(basePath);
-                    if (fs.existsSync(areasPath)) {
-                        const areas = fs.readdirSync(areasPath, { withFileTypes: true })
-                            .filter(dirent => dirent.isDirectory())
-                            .map(dirent => dirent.name);
-                        
-                        for (const area of areas) {
-                            const areaViewPath = path.join(areasPath, area, 'Views', controllerName, pattern);
-                            if (fs.existsSync(areaViewPath)) {
-                                return areaViewPath;
-                            }
-                            
-                            // Also check Shared folder in areas
-                            const areaSharedViewPath = path.join(areasPath, area, 'Views', 'Shared', pattern);
-                            if (fs.existsSync(areaSharedViewPath)) {
-                                return areaSharedViewPath;
-                            }
-                        }
-                    }
-                } catch (error) {
-                    // Continue to next path
+                const result = this.searchInAreas(viewPath, projectRoot, controllerName);
+                if (result) {
+                    return result;
                 }
             } else if (fs.existsSync(viewPath)) {
                 return viewPath;
             }
         }
 
+        return null;
+    }
+
+    private searchPartialViewInProject(projectRoot: string, controllerName: string, partialViewName: string): string | null {
+        // Common MVC partial view folder patterns within a specific project
+        const possiblePartialViewPaths = [
+            // Controller-specific partials
+            path.join(projectRoot, 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'Views', controllerName, `${partialViewName}.razor`),
+            
+            // Shared partials (most common for partial views)
+            path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'Views', 'Shared', `${partialViewName}.razor`),
+            
+            // Areas structure
+            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'Areas', '*', 'Views', controllerName, `${partialViewName}.razor`),
+            path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', `${partialViewName}.razor`),
+            
+            // Different project structures
+            path.join(projectRoot, 'src', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'src', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'Web', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'Web', 'Views', 'Shared', `${partialViewName}.cshtml`),
+            
+            // wwwroot structure
+            path.join(projectRoot, 'wwwroot', 'Views', controllerName, `${partialViewName}.cshtml`),
+            path.join(projectRoot, 'wwwroot', 'Views', 'Shared', `${partialViewName}.cshtml`),
+        ];
+
+        // Check each possible path
+        for (const viewPath of possiblePartialViewPaths) {
+            if (viewPath.includes('*')) {
+                // Handle Areas wildcard
+                const result = this.searchInAreas(viewPath, projectRoot, controllerName);
+                if (result) {
+                    return result;
+                }
+            } else if (fs.existsSync(viewPath)) {
+                return viewPath;
+            }
+        }
+
+        return null;
+    }
+
+    private searchInAreas(viewPathPattern: string, projectRoot: string, controllerName: string): string | null {
+        const basePath = path.dirname(viewPathPattern);
+        const pattern = path.basename(viewPathPattern);
+        try {
+            const areasPath = path.join(projectRoot, 'Areas');
+            if (fs.existsSync(areasPath)) {
+                const areas = fs.readdirSync(areasPath, { withFileTypes: true })
+                    .filter(dirent => dirent.isDirectory())
+                    .map(dirent => dirent.name);
+                
+                for (const area of areas) {
+                    const areaViewPath = path.join(areasPath, area, 'Views', controllerName, pattern);
+                    if (fs.existsSync(areaViewPath)) {
+                        return areaViewPath;
+                    }
+                    
+                    // Also check Shared folder in areas for partial views
+                    if (viewPathPattern.includes('Shared')) {
+                        const areaSharedViewPath = path.join(areasPath, area, 'Views', 'Shared', pattern);
+                        if (fs.existsSync(areaSharedViewPath)) {
+                            return areaSharedViewPath;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            // Continue to next path
+        }
         return null;
     }
 }

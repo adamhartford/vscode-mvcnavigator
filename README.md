@@ -7,6 +7,8 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 - **Ctrl+Click Navigation**: Navigate from controller actions to their corresponding views by Ctrl+clicking on view names in `View()` and `PartialView()` calls
 - **Underlined View Names**: View names in `View("ViewName")` and `PartialView("_PartialName")` calls are automatically underlined and made clickable
 - **Parameterless Call Support**: Both `View()` and `PartialView()` calls without parameters automatically resolve to action-named views
+- **Multi-Project Workspace Support**: Automatically detects and handles multiple ASP.NET MVC projects within a single VS Code workspace
+- **Smart Project Root Detection**: Intelligently identifies MVC project boundaries by looking for .csproj files, Views folders, Controllers folders, and other MVC indicators
 - **Multiple Project Structure Support**: Works with various ASP.NET MVC project structures including:
   - Standard MVC structure (`Views/Controller/ViewName.cshtml`)
   - Areas-based structure (`Areas/AreaName/Views/Controller/ViewName.cshtml`) 
@@ -44,6 +46,42 @@ PartialView("_PartialName")            // Navigates to _PartialName.cshtml
 **Parameterless View() Calls**: When you use `return View();` without specifying a view name, the extension automatically determines the view name based on the current action method name, following standard ASP.NET MVC conventions.
 
 **PartialView Support**: The extension fully supports `PartialView()` calls, both with explicit names and parameterless calls. Partial views are searched in controller-specific folders first, then in the Shared folder, which is the most common location for partial views.
+
+## Multi-Project Workspace Support
+
+The extension excels at handling workspaces with multiple ASP.NET MVC projects:
+
+```
+WorkspaceRoot/
+├── Project1/
+│   ├── Project1.csproj
+│   ├── Controllers/
+│   │   └── HomeController.cs
+│   └── Views/
+│       └── Home/
+│           └── Index.cshtml
+├── Project2/
+│   ├── Project2.csproj
+│   ├── Controllers/
+│   │   └── ProductController.cs
+│   └── Views/
+│       └── Product/
+│           └── List.cshtml
+└── SharedLibrary/
+    └── Models/
+```
+
+### How Multi-Project Detection Works:
+
+1. **Smart Project Root Detection**: When you Ctrl+click a view name, the extension:
+   - Starts from the controller file's location
+   - Walks up the directory tree to find MVC project indicators
+   - Looks for `.csproj` files, `Views` folders, `Controllers` folders, `Program.cs`, `Startup.cs`, or `wwwroot` folders
+   - Identifies the correct project boundary
+
+2. **Project-Relative Path Resolution**: Views are searched relative to the detected project root, not the workspace root
+
+3. **Isolated Project Navigation**: Controllers in Project1 will only navigate to views within Project1's structure, preventing cross-project confusion
 
 ## Project Structure Support
 
