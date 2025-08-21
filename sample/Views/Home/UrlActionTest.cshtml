@@ -1,0 +1,34 @@
+@model dynamic
+
+<h2>@Url.Action Navigation Test</h2>
+
+<div>
+    <!-- Test @Url.Action with just action name -->
+    <a href="@Url.Action("Index")">Home Index</a>
+    
+    <!-- Test @Url.Action with action and controller -->
+    <a href="@Url.Action("About", "Home")">About Page</a>
+    
+    <!-- Test @Url.Action with parameters -->
+    <a href="@Url.Action("Details", "Department", new { id = 1 })">Department Details</a>
+    
+    <!-- Test @Url.Action with anonymous object -->
+    <a href="@Url.Action("Contact", new { area = "" })">Contact</a>
+</div>
+
+<script>
+    // Test in JavaScript context
+    var indexUrl = '@Url.Action("Index", "Home")';
+    var aboutUrl = '@Url.Action("About")';
+    
+    console.log('Index URL:', indexUrl);
+    console.log('About URL:', aboutUrl);
+</script>
+
+@section Scripts {
+    <script>
+        // Test with single quotes
+        var contactUrl = '@Url.Action("Contact", "Home")';
+        var errorUrl = '@Url.Action("ServerError", "Error")';
+    </script>
+}
