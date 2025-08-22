@@ -4,12 +4,7 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 
 ## Demo
 
-<video width="800" controls>
-  <source src="demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-*Watch the extension in action: Ctrl+click navigation between controllers, views, and actions with support for HTML helpers, tag helpers, and HTTP method-aware routing.*
+![ASP.NET MVC Navigator Demo](demo.gif)
 
 ## Features
 
