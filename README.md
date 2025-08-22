@@ -1,4 +1,4 @@
-# ![ASP.NET MVC Navigator](icon.png) ASP.NET MVC Navigator
+# ASP.NET MVC Navigator
 
 A Visual Studio Code extension that provides intelligent navigation between ASP.NET MVC controllers, views, and actions, similar to the functionality found in JetBrains Rider and ReSharper.
 
