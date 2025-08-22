@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as RegexPatterns from './regexPatterns';
 import { MvcDefinitionProvider } from './MvcDefinitionProvider';
 import { MvcDocumentLinkProvider } from './MvcDocumentLinkProvider';
+import { MvcDocumentHighlightProvider } from './MvcDocumentHighlightProvider';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
@@ -47,6 +48,19 @@ export function activate(context: vscode.ExtensionContext) {
             { pattern: '**/*.razor' }
         ],
         definitionProvider
+    );
+
+    // Register document highlight provider to prevent word highlighting on our links
+    const highlightProvider = new MvcDocumentHighlightProvider(linkProvider);
+    const disposableHighlightProvider = vscode.languages.registerDocumentHighlightProvider(
+        [
+            { language: 'html' }, 
+            { language: 'razor' }, 
+            { language: 'aspnetcorerazor' },
+            { pattern: '**/*.cshtml' },
+            { pattern: '**/*.razor' }
+        ],
+        highlightProvider
     );
 
     // Register custom command for action navigation with line positioning
@@ -429,6 +443,7 @@ export function activate(context: vscode.ExtensionContext) {
         disposableRazorLinkProvider, 
         disposableDefinitionProvider,
         disposableRazorDefinitionProvider,
+        disposableHighlightProvider,
         disposableCommand, 
         disposableActionCommand, 
         disposableControllerCommand
