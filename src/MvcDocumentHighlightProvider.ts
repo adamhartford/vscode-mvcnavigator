@@ -8,6 +8,17 @@ export class MvcDocumentHighlightProvider implements vscode.DocumentHighlightPro
         this.linkProvider = linkProvider;
     }
 
+    private getDebugLoggingEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration('mvcNavigator');
+        return config.get<boolean>('enableDebugLogging', false);
+    }
+
+    private debugLog(message: string, ...args: any[]): void {
+        if (this.getDebugLoggingEnabled()) {
+            console.log(`[MvcDocumentHighlightProvider] ${message}`, ...args);
+        }
+    }
+
     provideDocumentHighlights(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.DocumentHighlight[]> {
         // Check if the position is within any of our document links
         const links = this.linkProvider.provideDocumentLinks(document);

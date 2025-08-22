@@ -438,6 +438,12 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showWarningMessage('No View(), PartialView(), or RedirectToAction() call found on current line.');
     });
 
+    // Register clear cache command
+    const disposableClearCacheCommand = vscode.commands.registerCommand('vscode-mvcnavigator.clearCache', () => {
+        linkProvider.clearCache();
+        vscode.window.showInformationMessage('MVC Navigator cache cleared successfully.');
+    });
+
     context.subscriptions.push(
         disposableLinkProvider, 
         disposableRazorLinkProvider, 
@@ -446,11 +452,16 @@ export function activate(context: vscode.ExtensionContext) {
         disposableHighlightProvider,
         disposableCommand, 
         disposableActionCommand, 
-        disposableControllerCommand
+        disposableControllerCommand,
+        disposableClearCacheCommand,
+        linkProvider // Add the link provider for proper disposal
     );
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+    // The context.subscriptions will automatically dispose of registered providers
+    // including the linkProvider which will call its dispose() method
+}
 
 

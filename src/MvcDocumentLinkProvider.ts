@@ -3,8 +3,164 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as RegexPatterns from './regexPatterns';
 
-export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
+export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vscode.Disposable {
     public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number }>();
+    private debounceTimers = new Map<string, NodeJS.Timeout>();
+    private cachedLinks = new Map<string, { links: vscode.DocumentLink[]; version: number }>();
+    private fileWatcher: vscode.FileSystemWatcher | undefined;
+    
+    constructor() {
+        const config = vscode.workspace.getConfiguration('mvcNavigator');
+        const enableFileWatcher = config.get<boolean>('enableFileWatcher', true);
+        const enableCaching = config.get<boolean>('enableCaching', true);
+        
+        if (enableCaching && enableFileWatcher) {
+            this.setupFileWatcher();
+        }
+        
+        // Listen for configuration changes
+        vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration('mvcNavigator.enableFileWatcher')) {
+                const newConfig = vscode.workspace.getConfiguration('mvcNavigator');
+                const newEnableFileWatcher = newConfig.get<boolean>('enableFileWatcher', false);
+                
+                if (newEnableFileWatcher && !this.fileWatcher) {
+                    this.debugLog('File watcher enabled via configuration change');
+                    this.setupFileWatcher();
+                } else if (!newEnableFileWatcher && this.fileWatcher) {
+                    this.debugLog('File watcher disabled via configuration change');
+                    this.fileWatcher.dispose();
+                    this.fileWatcher = undefined;
+                }
+            }
+            
+            if (event.affectsConfiguration('mvcNavigator.enableCaching')) {
+                const newConfig = vscode.workspace.getConfiguration('mvcNavigator');
+                const newEnableCaching = newConfig.get<boolean>('enableCaching', true);
+                
+                if (!newEnableCaching) {
+                    this.debugLog('Caching disabled via configuration change - clearing existing cache');
+                    this.cachedLinks.clear();
+
+                    if (enableFileWatcher && this.fileWatcher) {
+                        this.debugLog('File watcher disabled because caching is disabled');
+                        this.fileWatcher.dispose();
+                        this.fileWatcher = undefined;
+                    }
+                } else {
+                    this.debugLog('Caching enabled via configuration change');
+                }
+            }
+        });
+    }
+    
+    private getDebugLoggingEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration('mvcNavigator');
+        return config.get<boolean>('enableDebugLogging', false);
+    }
+    
+    private getCachingEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration('mvcNavigator');
+        return config.get<boolean>('enableCaching', true);
+    }
+    
+    public clearCache(): void {
+        this.cachedLinks.clear();
+        this.debugLog('Navigation cache cleared manually');
+        
+        if (!this.getCachingEnabled()) {
+            this.debugLog('Note: Caching is currently disabled in settings');
+        }
+    }
+    
+    private setupFileWatcher(): void {
+        // Watch for all C# files that might be controllers and all view files
+        this.fileWatcher = vscode.workspace.createFileSystemWatcher(
+            '**/*.{cs,cshtml,razor}', // Watch all C# and view files
+            false, // Don't ignore creates
+            false, // Don't ignore changes  
+            false  // Don't ignore deletes
+        );
+        
+        // Add throttling to prevent excessive events during builds
+        let throttleTimer: NodeJS.Timeout | undefined;
+        const throttledHandler = (uri: vscode.Uri) => {
+            if (throttleTimer) {
+                clearTimeout(throttleTimer);
+            }
+            throttleTimer = setTimeout(() => {
+                this.onFileSystemChange(uri);
+            }, 500); // 500ms throttle
+        };
+        
+        // Invalidate caches when MVC files change
+        this.fileWatcher.onDidCreate(throttledHandler);
+        this.fileWatcher.onDidChange(throttledHandler);
+        this.fileWatcher.onDidDelete(throttledHandler);
+        
+        // Also watch for workspace configuration changes
+        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            this.debugLog('Workspace folders changed - clearing all caches');
+            this.cachedLinks.clear();
+            this.debounceTimers.clear();
+        });
+        
+        this.debugLog('File system watcher enabled for all C# and view files');
+    }
+    
+    private onFileSystemChange(uri: vscode.Uri): void {
+        const filePath = uri.fsPath;
+        const fileName = path.basename(filePath);
+        
+        // Check if this is an MVC-related file
+        const isMvcFile = this.isMvcRelatedFile(filePath, fileName);
+        
+        if (isMvcFile) {
+            this.debugLog(`File system change detected: ${filePath} - invalidating relevant caches`);
+            this.cachedLinks.clear();
+            this.clearDebounceTimers();
+        }
+    }
+    
+    private isMvcRelatedFile(filePath: string, fileName: string): boolean {
+        const lowerPath = filePath.toLowerCase();
+        const lowerName = fileName.toLowerCase();
+
+        return lowerName.endsWith('.cshtml') || 
+            lowerName.endsWith('.razor') ||
+            (lowerName.endsWith('.cs') && (
+                lowerPath.includes('controller') || 
+                lowerPath.includes('/controllers/') ||
+                lowerPath.includes('\\controllers\\')
+            ));
+    }
+
+    private clearDebounceTimers(): void {
+        this.debounceTimers.clear();
+    }
+    
+    public dispose(): void {
+        if (this.fileWatcher) {
+            this.fileWatcher.dispose();
+            this.debugLog('File system watcher disposed');
+        }
+        
+        // Clean up timers
+        for (const timer of this.debounceTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.debounceTimers.clear();
+        
+        // Clear caches to free memory
+        this.cachedLinks.clear();
+        this.pendingNavigations.clear();
+    }
+    
+    private debugLog(message: string): void {
+        if (this.getDebugLoggingEnabled()) {
+            console.log(`[MVC Navigator] ${message}`);
+        }
+    }
     
     // Helper method to create action command URIs with proper parameter handling
     private createActionCommandUri(filePath: string, lineNumber?: number): vscode.Uri {
@@ -28,6 +184,24 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     }
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
+        const cachingEnabled = this.getCachingEnabled();
+        const documentKey = `${document.uri.toString()}-${document.version}`;
+        
+        // Debounce rapid document changes
+        const debounceKey = document.uri.toString();
+        if (this.debounceTimers.has(debounceKey)) {
+            clearTimeout(this.debounceTimers.get(debounceKey)!);
+        }
+        
+        // Check cache first (only if caching is enabled)
+        if (cachingEnabled) {
+            const cached = this.cachedLinks.get(documentKey);
+            if (cached && cached.version === document.version) {
+                this.debugLog(`Using cached links for ${document.fileName} (${cached.links.length} links)`);
+                return cached.links;
+            }
+        }
+        
         const links: vscode.DocumentLink[] = [];
         
         // Process C# files for controller-based navigation
@@ -40,13 +214,34 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             document.languageId === 'aspnetcorerazor' ||
             document.fileName.endsWith('.cshtml') || document.fileName.endsWith('.razor')) {
             
-            // Debug logging
-            console.log(`[MVC Navigator] Processing file: ${document.fileName}, languageId: ${document.languageId}`);
+            this.debugLog(`Processing file: ${document.fileName}, languageId: ${document.languageId}`);
             
             this.processRazorNavigations(document, links);
             this.processTagHelperNavigations(document, links);
             
-            console.log(`[MVC Navigator] Found ${links.length} links in ${document.fileName}`);
+            this.debugLog(`Found ${links.length} links in ${document.fileName}`);
+        }
+
+        // Cache the results (only if caching is enabled)
+        if (cachingEnabled) {
+            this.cachedLinks.set(documentKey, { links, version: document.version });
+            
+            // Clean up old cache entries (keep only last 50)
+            if (this.cachedLinks.size > 50) {
+                const entries = Array.from(this.cachedLinks.entries());
+                const toDelete = entries.slice(0, entries.length - 50);
+                toDelete.forEach(([key]) => this.cachedLinks.delete(key));
+            }
+        }
+        
+        // Clean up old debounce timers (keep only last 20)
+        if (this.debounceTimers.size > 20) {
+            const entries = Array.from(this.debounceTimers.entries());
+            const toDelete = entries.slice(0, entries.length - 20);
+            toDelete.forEach(([key]) => {
+                clearTimeout(this.debounceTimers.get(key)!);
+                this.debounceTimers.delete(key);
+            });
         }
 
         return links;
@@ -100,6 +295,12 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
         // Handle RedirectToAction("ActionName", routeValues) calls
         this.processRedirectToActionWithAnonymousObject(document, text, links);
+
+        // Handle C# Url.Action() calls in controller code
+        this.processCSharpUrlActionWithAction(document, text, links);
+        this.processCSharpUrlActionWithActionAndController(document, text, links);
+        this.processCSharpUrlActionWithParams(document, text, links);
+        this.processCSharpUrlActionWithAnonymousObject(document, text, links);
     }
 
     private processRazorNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
@@ -169,8 +370,8 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     private processTagHelperNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
         const text = document.getText();
         
-        console.log(`[MVC Navigator] Processing tag helpers in ${document.fileName}`);
-        console.log(`[MVC Navigator] Document content length: ${text.length}`);
+        this.debugLog(`Processing tag helpers in ${document.fileName}`);
+        this.debugLog(`Document content length: ${text.length}`);
         
         // Handle <a asp-action="..." asp-controller="..." asp-area="..."> tag helpers
         this.processAnchorTagHelpers(document, text, links);
@@ -181,7 +382,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle <partial name="..." /> tag helpers
         this.processPartialTagHelpers(document, text, links);
         
-        console.log(`[MVC Navigator] Tag helper processing complete for ${document.fileName}`);
+        this.debugLog(`Tag helper processing complete for ${document.fileName}`);
     }
 
     private processViewCallsWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
@@ -839,6 +1040,165 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 
                 const range = new vscode.Range(startPos, endPos);
                 const actionPath = this.findActionMethodFromView(document.uri, actionName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // C# Url.Action processing methods (for controller code)
+    private processCSharpUrlActionWithAction(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.CSHARP_URL_ACTION_WITH_ACTION_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.CSHARP_URL_ACTION_WITH_ACTION_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethod(document.uri, actionName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processCSharpUrlActionWithActionAndController(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.CSHARP_URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.CSHARP_URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const controllerName = match[2];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+            
+            // Also underline the controller name
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes);
+            if (controllerStartInMatch !== -1) {
+                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+                const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                if (controllerPath) {
+                    const controllerCommandUri = this.createControllerCommandUri(controllerPath);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
+            }
+        }
+    }
+
+    private processCSharpUrlActionWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.CSHARP_URL_ACTION_WITH_PARAMS_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.CSHARP_URL_ACTION_WITH_PARAMS_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            const controllerName = match[2];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                if (actionPath) {
+                    // Create command URI for precise navigation
+                    const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                    const link = new vscode.DocumentLink(range, commandUri);
+                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    links.push(link);
+                }
+            }
+            
+            // Also underline the controller name
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes);
+            if (controllerStartInMatch !== -1) {
+                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+                const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                if (controllerPath) {
+                    const controllerCommandUri = this.createControllerCommandUri(controllerPath);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
+            }
+        }
+    }
+
+    private processCSharpUrlActionWithAnonymousObject(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.CSHARP_URL_ACTION_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.CSHARP_URL_ACTION_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
+            const actionName = match[1];
+            
+            // Find the exact position of the quoted action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            
+            if (actionStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + actionStartInMatch);
+                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const actionPath = this.findActionMethod(document.uri, actionName);
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
@@ -2253,7 +2613,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle <a asp-action="ActionName" asp-controller="ControllerName" asp-area="AreaName">
         let match;
         
-        console.log(`[MVC Navigator] Processing anchor tag helpers...`);
+        this.debugLog(`Processing anchor tag helpers...`);
         
         // Reset regex state
         RegexPatterns.ANCHOR_TAG_HELPER_ACTION_REGEX.lastIndex = 0;
@@ -2264,8 +2624,8 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const fullMatch = match[0];
             const actionName = match[1];
             
-            console.log(`[MVC Navigator] Found anchor tag helper ${matchCount}: action="${actionName}"`);
-            console.log(`[MVC Navigator] Full match: ${fullMatch}`);
+            this.debugLog(`Found anchor tag helper ${matchCount}: action="${actionName}"`);
+            this.debugLog(`Full match: ${fullMatch}`);
             
             // Extract controller and area from the same tag
             const controllerMatch = fullMatch.match(/asp-controller\s*=\s*["']([^"']+)["']/);
@@ -2274,7 +2634,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const controllerName = controllerMatch ? controllerMatch[1] : null;
             const areaName = areaMatch ? (areaMatch[1] || null) : null;  // Treat empty string as null
             
-            console.log(`[MVC Navigator] Extracted - controller: ${controllerName}, area: ${areaName}`);
+            this.debugLog(`Extracted - controller: ${controllerName}, area: ${areaName}`);
             
             // Create range for the action name (excluding quotes)
             const actionStart = match.index + fullMatch.indexOf(`"${actionName}"`) + 1;
@@ -2295,14 +2655,14 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 actionPath = this.findActionMethodFromView(document.uri, actionName);
             }
             
-            console.log(`[MVC Navigator] Action search result: ${actionPath ? 'found' : 'not found'}`);
+            this.debugLog(`Action search result: ${actionPath ? 'found' : 'not found'}`);
             
             if (actionPath) {
                 const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                 links.push(new vscode.DocumentLink(actionRange, commandUri));
-                console.log(`[MVC Navigator] Created link for action "${actionName}"`);
+                this.debugLog(`Created link for action "${actionName}"`);
             } else {
-                console.log(`[MVC Navigator] No action found for "${actionName}"`);
+                this.debugLog(`No action found for "${actionName}"`);
             }
             
             // If controller is specified, create link for it too
@@ -2415,7 +2775,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle <partial name="PartialViewName" />
         let match;
         
-        console.log(`[MVC Navigator] Processing partial tag helpers...`);
+        this.debugLog(`Processing partial tag helpers...`);
         
         // First, process full path partial tag helpers (more specific pattern)
         RegexPatterns.PARTIAL_TAG_HELPER_FULL_PATH_REGEX.lastIndex = 0;
@@ -2434,17 +2794,17 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
                 const range = new vscode.Range(startPos, endPos);
                 
-                console.log(`[MVC Navigator] Found partial tag helper with full path: "${fullPath}" at line ${startPos.line + 1}`);
+                this.debugLog(`Found partial tag helper with full path: "${fullPath}" at line ${startPos.line + 1}`);
                 
                 const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
                 
                 if (resolvedPath) {
-                    console.log(`[MVC Navigator] Resolved full path to: ${resolvedPath}`);
+                    this.debugLog(`Resolved full path to: ${resolvedPath}`);
                     const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
                     link.tooltip = `Navigate to ${path.basename(fullPath)} (partial tag helper with full path)`;
                     links.push(link);
                 } else {
-                    console.log(`[MVC Navigator] Could not resolve full path: ${fullPath}`);
+                    this.debugLog(`Could not resolve full path: ${fullPath}`);
                 }
             }
         }
@@ -2464,20 +2824,20 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
             const range = new vscode.Range(startPos, endPos);
             
-            console.log(`[MVC Navigator] Found partial tag helper: name="${partialViewName}" at line ${startPos.line + 1}`);
+            this.debugLog(`Found partial tag helper: name="${partialViewName}" at line ${startPos.line + 1}`);
             
             // Find the partial view file
             const viewPath = this.findPartialViewFile(document.uri, partialViewName);
             if (viewPath) {
-                console.log(`[MVC Navigator] Found partial view file: ${viewPath}`);
+                this.debugLog(`Found partial view file: ${viewPath}`);
                 const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
                 link.tooltip = `Navigate to ${partialViewName}.cshtml`;
                 links.push(link);
             } else {
-                console.log(`[MVC Navigator] Partial view file not found for: ${partialViewName}`);
+                this.debugLog(`Partial view file not found for: ${partialViewName}`);
             }
         }
         
-        console.log(`[MVC Navigator] Partial tag helper processing complete.`);
+        this.debugLog(`Partial tag helper processing complete.`);
     }
 }

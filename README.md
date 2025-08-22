@@ -72,8 +72,62 @@ Classic ASP.NET MVC HTML helpers:
 
 ## Usage
 
-Simply Ctrl+click (or Cmd+click on Mac) on any supported MVC pattern in your code. The extension will:
+Simply Ctrl+click (or Cmd+click on Mac) on any MVC controller, action, or view name string in your code. The extension will:
 1. 🔍 Analyze the code context
 2. 🗂️ Locate the target file (controller, view, or action)  
 3. 🚀 Navigate directly to the destination
 4. 📍 Position the cursor at the exact method or view
+
+## Configuration
+
+The extension provides several configuration options to customize its behavior. Access settings via VS Code: `File > Preferences > Settings` and search for "MVC Navigator".
+
+### Available Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `mvcNavigator.enableCaching` | `true` | Enable caching of navigation links for better performance. When disabled, links are processed fresh every time. |
+| `mvcNavigator.enableFileWatcher` | `true` | Enable file system watching for automatic cache invalidation when C# controllers or view files change. Watches all .cs, .cshtml, and .razor files. |
+| `mvcNavigator.enableDebugLogging` | `false` | Enable debug logging for troubleshooting navigation issues. Logs appear in the developer tools console. |
+
+### Caching & File Watching
+
+The extension provides two independent performance features:
+
+#### 🚀 **Caching** (Enabled by Default)
+- **Purpose**: Avoid re-processing navigation links for unchanged files
+- **Benefit**: Faster response when navigating within the same file multiple times
+- **When to disable**: If you prefer always-fresh results or experience caching issues
+
+#### 📁 **File Watching** (Enabled by Default)  
+- **Purpose**: Automatically invalidate caches when MVC files change
+- **Benefit**: Keeps cached navigation links up-to-date as you modify controllers/views
+- **When to disable**: If you experience file system performance issues
+
+#### Configuration Matrix
+
+| Caching | File Watcher | Behavior |
+|---------|-------------|----------|
+| ✅ On | ✅ On | **Recommended**: Fast caching + automatic updates |
+| ✅ On | ❌ Off | Fast caching but may show stale links until restart |
+| ❌ Off | ✅ On | Always fresh results (file watcher has no effect) |
+| ❌ Off | ❌ Off | Always fresh results with minimal overhead |
+
+### How to Enable Debug Logging
+
+If you're experiencing navigation issues:
+
+1. Open VS Code Settings (`Ctrl+,` / `Cmd+,`)
+2. Search for "MVC Navigator"
+3. Check "Enable Debug Logging"
+4. Open Developer Tools -> Console to view logs
+5. Try navigating to see detailed debug information
+
+### Manual Cache Management
+
+The extension includes a command to manually clear the navigation cache:
+
+- **Command Palette**: `Ctrl+Shift+P` > "Clear Navigation Cache"
+- **Use case**: If navigation links become stale after major file structure changes
+
+**Note:** The cache is automatically managed and cleared when files change (if file watching is enabled) or when documents are modified.

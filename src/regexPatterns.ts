@@ -32,6 +32,12 @@ export const URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /@Url\.Action\s*\(\s*
 export const URL_ACTION_WITH_PARAMS_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
 export const URL_ACTION_ANONYMOUS_OBJECT_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
 
+// Regular expressions to match Url.Action() calls in C# controller code
+export const CSHARP_URL_ACTION_WITH_ACTION_REGEX = /\bUrl\.Action\s*\(\s*["']([^"']+)["']\s*\)/g;
+export const CSHARP_URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /\bUrl\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
+export const CSHARP_URL_ACTION_WITH_PARAMS_REGEX = /\bUrl\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
+export const CSHARP_URL_ACTION_ANONYMOUS_OBJECT_REGEX = /\bUrl\.Action\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
+
 // Regular expressions to match @Html.ActionLink() calls in Razor views
 export const HTML_ACTION_LINK_WITH_ACTION_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*\)/g;
 export const HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
