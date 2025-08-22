@@ -2,6 +2,15 @@
 
 A Visual Studio Code extension that provides intelligent navigation between ASP.NET MVC controllers, views, and actions, similar to the functionality found in JetBrains Rider and ReSharper.
 
+## Demo
+
+<video width="800" controls>
+  <source src="demo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+*Watch the extension in action: Ctrl+click navigation between controllers, views, and actions with support for HTML helpers, tag helpers, and HTTP method-aware routing.*
+
 ## Features
 
 - **Ctrl+Click Navigation**: Navigate from controller actions to their corresponding views by Ctrl+clicking on view names in `View()` and `PartialView()` calls
