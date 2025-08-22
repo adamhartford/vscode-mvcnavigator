@@ -3,76 +3,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-
-// Regular expressions to match View() calls
-const VIEW_CALL_WITH_NAME_REGEX = /\bView\s*\(\s*["']([^"']+)["']\s*\)/g;
-const VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX = /\bView\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g; // View("ViewName", model, ...)
-const VIEW_CALL_PARAMETERLESS_REGEX = /\bView\s*\(\s*\)/g;
-const VIEW_CALL_WITH_MODEL_REGEX = /\bView\s*\(\s*(?!["'])[^)]+\)/g; // View(model) or View(new Model{...})
-
-// Regular expressions to match PartialView() calls
-const PARTIAL_VIEW_CALL_WITH_NAME_REGEX = /\bPartialView\s*\(\s*["']([^"']+)["']\s*\)/g;
-const PARTIAL_VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX = /\bPartialView\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g; // PartialView("ViewName", model, ...)
-const PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX = /\bPartialView\s*\(\s*\)/g;
-const PARTIAL_VIEW_CALL_WITH_MODEL_REGEX = /\bPartialView\s*\(\s*(?!["'])[^)]+\)/g; // PartialView(model) or PartialView(new Model{...})
-
-// Regular expressions to match View() and PartialView() calls with full paths
-const VIEW_CALL_WITH_FULL_PATH_REGEX = /\b(View|PartialView)\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
-const VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX = /\b(View|PartialView)\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
-
-// Regular expressions to match RedirectToAction() calls
-const REDIRECT_TO_ACTION_WITH_ACTION_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*\)/g;
-const REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
-const REDIRECT_TO_ACTION_WITH_PARAMS_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*(?:new\s*\{(?![^}]*area\s*=)[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
-const REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*(?:(?!new\s*\{[^}]*area\s*=)new\s*\{[^}]+\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
-const REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
-
-// Regular expressions to match RedirectToAction() calls with area in route values
-const REDIRECT_TO_ACTION_WITH_AREA_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
-
-// Regular expressions to match @Url.Action() calls in Razor views
-const URL_ACTION_WITH_ACTION_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*\)/g;
-const URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
-const URL_ACTION_WITH_PARAMS_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
-const URL_ACTION_ANONYMOUS_OBJECT_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
-
-// Regular expressions to match @Html.ActionLink() calls in Razor views
-const HTML_ACTION_LINK_WITH_ACTION_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*\)/g;
-const HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
-const HTML_ACTION_LINK_WITH_PARAMS_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
-const HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX = /@?Html\.ActionLink\s*\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
-
-// Regular expressions to match @Html.BeginForm() calls in Razor views
-const HTML_BEGIN_FORM_WITH_ACTION_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*\)/g;
-const HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
-const HTML_BEGIN_FORM_WITH_PARAMS_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
-const HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX = /@?Html\.BeginForm\s*\(\s*["']([^"']+)["']\s*,\s*(?:new\s*\{[^}]+\}|[^"'][^,)]*)\s*\)/g;
-
-// Regular expressions to match @Html.Partial() calls in Razor views
-const HTML_PARTIAL_WITH_NAME_REGEX = /@?Html\.Partial\s*\(\s*["']([^"']+)["']\s*\)(?!\s*,)/g;
-const HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX = /@?Html\.Partial\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
-const HTML_PARTIAL_WITH_FULL_PATH_REGEX = /@?Html\.Partial\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
-const HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX = /@?Html\.Partial\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
-
-// Regular expressions to match @await Html.PartialAsync() calls in Razor views
-const HTML_PARTIAL_ASYNC_WITH_NAME_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["']([^"']+)["']\s*\)(?!\s*,)/g;
-const HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
-const HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
-const HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
-
-// Regular expressions to match ASP.NET Core Tag Helpers
-const ANCHOR_TAG_HELPER_ACTION_REGEX = /<a[^>]*asp-action\s*=\s*["']([^"']+)["'][^>]*>/g;
-const ANCHOR_TAG_HELPER_CONTROLLER_REGEX = /<a[^>]*asp-controller\s*=\s*["']([^"']+)["'][^>]*>/g;
-const ANCHOR_TAG_HELPER_AREA_REGEX = /<a[^>]*asp-area\s*=\s*["']([^"']*)["'][^>]*>/g;  // Allow empty string for asp-area=""
-
-const FORM_TAG_HELPER_ACTION_REGEX = /<form[^>]*asp-action\s*=\s*["']([^"']+)["'][^>]*>/g;
-const FORM_TAG_HELPER_CONTROLLER_REGEX = /<form[^>]*asp-controller\s*=\s*["']([^"']+)["'][^>]*>/g;
-const FORM_TAG_HELPER_AREA_REGEX = /<form[^>]*asp-area\s*=\s*["']([^"']*)["'][^>]*>/g;  // Allow empty string for asp-area=""
-
-// Regex to extract HTTP method from form elements
-const FORM_METHOD_REGEX = /\bmethod\s*=\s*["']([^"']+)["']/i;
-const FORM_METHOD_POST_REGEX = /FormMethod\.Post/;
-const FORM_METHOD_GET_REGEX = /FormMethod\.Get/;
+import * as RegexPatterns from './regexPatterns';
 
 class MvcDefinitionProvider implements vscode.DefinitionProvider {
     private linkProvider: MvcDocumentLinkProvider;
@@ -277,9 +208,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processViewCallsWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        VIEW_CALL_WITH_NAME_REGEX.lastIndex = 0;
+        RegexPatterns.VIEW_CALL_WITH_NAME_REGEX.lastIndex = 0;
 
-        while ((match = VIEW_CALL_WITH_NAME_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.VIEW_CALL_WITH_NAME_REGEX.exec(text)) !== null) {
             const viewName = match[1];
             const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
             const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
@@ -297,9 +228,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processViewCallsWithNameAndParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.lastIndex = 0;
+        RegexPatterns.VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.lastIndex = 0;
 
-        while ((match = VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.exec(text)) !== null) {
             const viewName = match[1];
             const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
             const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
@@ -317,9 +248,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processParameterlessViewCalls(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        VIEW_CALL_PARAMETERLESS_REGEX.lastIndex = 0;
+        RegexPatterns.VIEW_CALL_PARAMETERLESS_REGEX.lastIndex = 0;
 
-        while ((match = VIEW_CALL_PARAMETERLESS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.VIEW_CALL_PARAMETERLESS_REGEX.exec(text)) !== null) {
             const actionName = this.getActionNameFromPosition(document, match.index);
             if (actionName) {
                 // Find the "View" text within the match
@@ -341,9 +272,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processPartialViewCallsWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        PARTIAL_VIEW_CALL_WITH_NAME_REGEX.lastIndex = 0;
+        RegexPatterns.PARTIAL_VIEW_CALL_WITH_NAME_REGEX.lastIndex = 0;
 
-        while ((match = PARTIAL_VIEW_CALL_WITH_NAME_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.PARTIAL_VIEW_CALL_WITH_NAME_REGEX.exec(text)) !== null) {
             const partialViewName = match[1];
             const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
             const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
@@ -361,9 +292,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processPartialViewCallsWithNameAndParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        PARTIAL_VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.lastIndex = 0;
+        RegexPatterns.PARTIAL_VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.lastIndex = 0;
 
-        while ((match = PARTIAL_VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.PARTIAL_VIEW_CALL_WITH_NAME_AND_PARAMS_REGEX.exec(text)) !== null) {
             const partialViewName = match[1];
             const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
             const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
@@ -381,9 +312,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processParameterlessPartialViewCalls(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX.lastIndex = 0;
+        RegexPatterns.PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX.lastIndex = 0;
 
-        while ((match = PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.PARTIAL_VIEW_CALL_PARAMETERLESS_REGEX.exec(text)) !== null) {
             const actionName = this.getActionNameFromPosition(document, match.index);
             if (actionName) {
                 // Find the "PartialView" text within the match
@@ -405,9 +336,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processViewCallsWithModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        VIEW_CALL_WITH_MODEL_REGEX.lastIndex = 0;
+        RegexPatterns.VIEW_CALL_WITH_MODEL_REGEX.lastIndex = 0;
 
-        while ((match = VIEW_CALL_WITH_MODEL_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.VIEW_CALL_WITH_MODEL_REGEX.exec(text)) !== null) {
             const actionName = this.getActionNameFromPosition(document, match.index);
             if (actionName) {
                 // Find the "View" text within the match
@@ -429,9 +360,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processPartialViewCallsWithModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        PARTIAL_VIEW_CALL_WITH_MODEL_REGEX.lastIndex = 0;
+        RegexPatterns.PARTIAL_VIEW_CALL_WITH_MODEL_REGEX.lastIndex = 0;
 
-        while ((match = PARTIAL_VIEW_CALL_WITH_MODEL_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.PARTIAL_VIEW_CALL_WITH_MODEL_REGEX.exec(text)) !== null) {
             const actionName = this.getActionNameFromPosition(document, match.index);
             if (actionName) {
                 // Find the "PartialView" text within the match
@@ -453,9 +384,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processViewCallsWithFullPath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        VIEW_CALL_WITH_FULL_PATH_REGEX.lastIndex = 0;
+        RegexPatterns.VIEW_CALL_WITH_FULL_PATH_REGEX.lastIndex = 0;
 
-        while ((match = VIEW_CALL_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.VIEW_CALL_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
             const viewType = match[1]; // "View" or "PartialView"
             const fullPath = match[2]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
             
@@ -483,9 +414,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processViewCallsWithFullPathAndParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX.lastIndex = 0;
+        RegexPatterns.VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX.lastIndex = 0;
 
-        while ((match = VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX.exec(text)) !== null) {
             const viewType = match[1]; // "View" or "PartialView"
             const fullPath = match[2]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
             
@@ -513,9 +444,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processRedirectToActionWithAction(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        REDIRECT_TO_ACTION_WITH_ACTION_REGEX.lastIndex = 0;
+        RegexPatterns.REDIRECT_TO_ACTION_WITH_ACTION_REGEX.lastIndex = 0;
 
-        while ((match = REDIRECT_TO_ACTION_WITH_ACTION_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.REDIRECT_TO_ACTION_WITH_ACTION_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Find the exact position of the quoted action name
@@ -558,9 +489,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processRedirectToActionWithActionAndController(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
+        RegexPatterns.REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
 
-        while ((match = REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -596,9 +527,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processRedirectToActionWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        REDIRECT_TO_ACTION_WITH_PARAMS_REGEX.lastIndex = 0;
+        RegexPatterns.REDIRECT_TO_ACTION_WITH_PARAMS_REGEX.lastIndex = 0;
 
-        while ((match = REDIRECT_TO_ACTION_WITH_PARAMS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.REDIRECT_TO_ACTION_WITH_PARAMS_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -634,9 +565,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processRedirectToActionWithAnonymousObject(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
+        RegexPatterns.REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
 
-        while ((match = REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Find the exact position of the quoted action name
@@ -678,9 +609,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processRedirectToActionWithArea(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        REDIRECT_TO_ACTION_WITH_AREA_REGEX.lastIndex = 0;
+        RegexPatterns.REDIRECT_TO_ACTION_WITH_AREA_REGEX.lastIndex = 0;
 
-        while ((match = REDIRECT_TO_ACTION_WITH_AREA_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.REDIRECT_TO_ACTION_WITH_AREA_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             const areaName = match[3];
@@ -732,9 +663,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processRedirectToActionWithAreaTwoParam(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX.lastIndex = 0;
+        RegexPatterns.REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX.lastIndex = 0;
 
-        while ((match = REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const areaName = match[2];
             
@@ -770,9 +701,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processUrlActionWithAction(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        URL_ACTION_WITH_ACTION_REGEX.lastIndex = 0;
+        RegexPatterns.URL_ACTION_WITH_ACTION_REGEX.lastIndex = 0;
 
-        while ((match = URL_ACTION_WITH_ACTION_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.URL_ACTION_WITH_ACTION_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Find the exact position of the quoted action name
@@ -801,9 +732,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processUrlActionWithActionAndController(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
+        RegexPatterns.URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
 
-        while ((match = URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -857,9 +788,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processUrlActionWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        URL_ACTION_WITH_PARAMS_REGEX.lastIndex = 0;
+        RegexPatterns.URL_ACTION_WITH_PARAMS_REGEX.lastIndex = 0;
 
-        while ((match = URL_ACTION_WITH_PARAMS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.URL_ACTION_WITH_PARAMS_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -913,9 +844,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processUrlActionWithAnonymousObject(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        URL_ACTION_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
+        RegexPatterns.URL_ACTION_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
 
-        while ((match = URL_ACTION_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.URL_ACTION_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Find the exact position of the quoted action name
@@ -945,9 +876,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // @Html.ActionLink processing methods
     private processHtmlActionLinkWithAction(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_ACTION_LINK_WITH_ACTION_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_ACTION_LINK_WITH_ACTION_REGEX.lastIndex = 0;
 
-        while ((match = HTML_ACTION_LINK_WITH_ACTION_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_ACTION_LINK_WITH_ACTION_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Find the exact position of the quoted action name (second parameter)
@@ -980,9 +911,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlActionLinkWithActionAndController(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
 
-        while ((match = HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_ACTION_LINK_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -1036,9 +967,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlActionLinkWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_ACTION_LINK_WITH_PARAMS_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_ACTION_LINK_WITH_PARAMS_REGEX.lastIndex = 0;
 
-        while ((match = HTML_ACTION_LINK_WITH_PARAMS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_ACTION_LINK_WITH_PARAMS_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -1092,9 +1023,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlActionLinkWithAnonymousObject(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
 
-        while ((match = HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_ACTION_LINK_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Find the exact position of the quoted action name (second parameter)
@@ -1128,9 +1059,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // @Html.BeginForm processing methods
     private processHtmlBeginFormWithAction(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_BEGIN_FORM_WITH_ACTION_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_BEGIN_FORM_WITH_ACTION_REGEX.lastIndex = 0;
 
-        while ((match = HTML_BEGIN_FORM_WITH_ACTION_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_BEGIN_FORM_WITH_ACTION_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Extract HTTP method from the full Html.BeginForm call
@@ -1169,9 +1100,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlBeginFormWithActionAndController(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX.lastIndex = 0;
 
-        while ((match = HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_BEGIN_FORM_WITH_ACTION_AND_CONTROLLER_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -1231,9 +1162,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlBeginFormWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_BEGIN_FORM_WITH_PARAMS_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_BEGIN_FORM_WITH_PARAMS_REGEX.lastIndex = 0;
 
-        while ((match = HTML_BEGIN_FORM_WITH_PARAMS_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_BEGIN_FORM_WITH_PARAMS_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             const controllerName = match[2];
             
@@ -1293,9 +1224,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlBeginFormWithAnonymousObject(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX.lastIndex = 0;
 
-        while ((match = HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
             // Extract HTTP method from the full Html.BeginForm call
@@ -1335,9 +1266,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // @Html.Partial processing methods
     private processHtmlPartialWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_WITH_NAME_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_WITH_NAME_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_WITH_NAME_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_WITH_NAME_REGEX.exec(text)) !== null) {
             const partialViewName = match[1];
             
             // Find the exact position of the quoted partial view name
@@ -1364,9 +1295,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlPartialWithNameAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX.exec(text)) !== null) {
             const partialViewName = match[1];
             
             // Find the exact position of the quoted partial view name
@@ -1394,9 +1325,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // @await Html.PartialAsync processing methods
     private processHtmlPartialAsyncWithName(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_ASYNC_WITH_NAME_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_ASYNC_WITH_NAME_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_ASYNC_WITH_NAME_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_ASYNC_WITH_NAME_REGEX.exec(text)) !== null) {
             const partialViewName = match[1];
             
             // Find the exact position of the quoted partial view name
@@ -1423,9 +1354,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlPartialAsyncWithNameAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX.exec(text)) !== null) {
             const partialViewName = match[1];
             
             // Find the exact position of the quoted partial view name
@@ -1453,9 +1384,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // @Html.Partial with full path processing methods
     private processHtmlPartialWithFullPath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_WITH_FULL_PATH_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_WITH_FULL_PATH_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
             const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
             
             // Find the exact position of the quoted path
@@ -1482,9 +1413,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlPartialWithFullPathAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
             const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
             
             // Find the exact position of the quoted path
@@ -1512,9 +1443,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // @await Html.PartialAsync with full path processing methods
     private processHtmlPartialAsyncWithFullPath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX.exec(text)) !== null) {
             const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
             
             // Find the exact position of the quoted path
@@ -1541,9 +1472,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     private processHtmlPartialAsyncWithFullPathAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         let match;
-        HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX.lastIndex = 0;
+        RegexPatterns.HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX.lastIndex = 0;
 
-        while ((match = HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
             const fullPath = match[1]; // The full path like "~/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
             
             // Find the exact position of the quoted path
@@ -2264,18 +2195,18 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // Helper method to extract HTTP method from form elements
     private extractHttpMethodFromForm(formElementText: string): string {
         // Check for explicit method attribute in tag helpers and HTML forms
-        const methodMatch = formElementText.match(FORM_METHOD_REGEX);
+        const methodMatch = formElementText.match(RegexPatterns.FORM_METHOD_REGEX);
         if (methodMatch) {
             return methodMatch[1].toUpperCase();
         }
         
         // Check for FormMethod.Post in Html.BeginForm
-        if (FORM_METHOD_POST_REGEX.test(formElementText)) {
+        if (RegexPatterns.FORM_METHOD_POST_REGEX.test(formElementText)) {
             return 'POST';
         }
         
         // Check for FormMethod.Get in Html.BeginForm
-        if (FORM_METHOD_GET_REGEX.test(formElementText)) {
+        if (RegexPatterns.FORM_METHOD_GET_REGEX.test(formElementText)) {
             return 'GET';
         }
         
@@ -2347,10 +2278,10 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         console.log(`[MVC Navigator] Processing anchor tag helpers...`);
         
         // Reset regex state
-        ANCHOR_TAG_HELPER_ACTION_REGEX.lastIndex = 0;
+        RegexPatterns.ANCHOR_TAG_HELPER_ACTION_REGEX.lastIndex = 0;
         
         let matchCount = 0;
-        while ((match = ANCHOR_TAG_HELPER_ACTION_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.ANCHOR_TAG_HELPER_ACTION_REGEX.exec(text)) !== null) {
             matchCount++;
             const fullMatch = match[0];
             const actionName = match[1];
@@ -2425,9 +2356,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         let match;
         
         // Reset regex state
-        FORM_TAG_HELPER_ACTION_REGEX.lastIndex = 0;
+        RegexPatterns.FORM_TAG_HELPER_ACTION_REGEX.lastIndex = 0;
         
-        while ((match = FORM_TAG_HELPER_ACTION_REGEX.exec(text)) !== null) {
+        while ((match = RegexPatterns.FORM_TAG_HELPER_ACTION_REGEX.exec(text)) !== null) {
             const fullMatch = match[0];
             const actionName = match[1];
             
@@ -2933,3 +2864,5 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {}
+
+
