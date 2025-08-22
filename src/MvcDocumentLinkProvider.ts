@@ -6,154 +6,11 @@ import * as RegexPatterns from './regexPatterns';
 export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vscode.Disposable {
     public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number }>();
     private debounceTimers = new Map<string, NodeJS.Timeout>();
-    private cachedLinks = new Map<string, { links: vscode.DocumentLink[]; version: number }>();
     private fileWatcher: vscode.FileSystemWatcher | undefined;
-    
-    constructor() {
-        const config = vscode.workspace.getConfiguration('mvcNavigator');
-        const enableFileWatcher = config.get<boolean>('enableFileWatcher', true);
-        const enableCaching = config.get<boolean>('enableCaching', true);
-        
-        if (enableCaching && enableFileWatcher) {
-            this.setupFileWatcher();
-        }
-        
-        // Listen for configuration changes
-        vscode.workspace.onDidChangeConfiguration((event) => {
-            if (event.affectsConfiguration('mvcNavigator.enableFileWatcher')) {
-                const newConfig = vscode.workspace.getConfiguration('mvcNavigator');
-                const newEnableFileWatcher = newConfig.get<boolean>('enableFileWatcher', false);
-                
-                if (newEnableFileWatcher && !this.fileWatcher) {
-                    this.debugLog('File watcher enabled via configuration change');
-                    this.setupFileWatcher();
-                } else if (!newEnableFileWatcher && this.fileWatcher) {
-                    this.debugLog('File watcher disabled via configuration change');
-                    this.fileWatcher.dispose();
-                    this.fileWatcher = undefined;
-                }
-            }
-            
-            if (event.affectsConfiguration('mvcNavigator.enableCaching')) {
-                const newConfig = vscode.workspace.getConfiguration('mvcNavigator');
-                const newEnableCaching = newConfig.get<boolean>('enableCaching', true);
-                
-                if (!newEnableCaching) {
-                    this.debugLog('Caching disabled via configuration change - clearing existing cache');
-                    this.cachedLinks.clear();
-
-                    if (enableFileWatcher && this.fileWatcher) {
-                        this.debugLog('File watcher disabled because caching is disabled');
-                        this.fileWatcher.dispose();
-                        this.fileWatcher = undefined;
-                    }
-                } else {
-                    this.debugLog('Caching enabled via configuration change');
-                }
-            }
-        });
-    }
     
     private getDebugLoggingEnabled(): boolean {
         const config = vscode.workspace.getConfiguration('mvcNavigator');
         return config.get<boolean>('enableDebugLogging', false);
-    }
-    
-    private getCachingEnabled(): boolean {
-        const config = vscode.workspace.getConfiguration('mvcNavigator');
-        return config.get<boolean>('enableCaching', true);
-    }
-    
-    public clearCache(): void {
-        this.cachedLinks.clear();
-        this.debugLog('Navigation cache cleared manually');
-        
-        if (!this.getCachingEnabled()) {
-            this.debugLog('Note: Caching is currently disabled in settings');
-        }
-    }
-    
-    private setupFileWatcher(): void {
-        // Watch for all C# files that might be controllers and all view files
-        this.fileWatcher = vscode.workspace.createFileSystemWatcher(
-            '**/*.{cs,cshtml,razor}', // Watch all C# and view files
-            false, // Don't ignore creates
-            false, // Don't ignore changes  
-            false  // Don't ignore deletes
-        );
-        
-        // Add throttling to prevent excessive events during builds
-        let throttleTimer: NodeJS.Timeout | undefined;
-        const throttledHandler = (uri: vscode.Uri) => {
-            if (throttleTimer) {
-                clearTimeout(throttleTimer);
-            }
-            throttleTimer = setTimeout(() => {
-                this.onFileSystemChange(uri);
-            }, 500); // 500ms throttle
-        };
-        
-        // Invalidate caches when MVC files change
-        this.fileWatcher.onDidCreate(throttledHandler);
-        this.fileWatcher.onDidChange(throttledHandler);
-        this.fileWatcher.onDidDelete(throttledHandler);
-        
-        // Also watch for workspace configuration changes
-        vscode.workspace.onDidChangeWorkspaceFolders(() => {
-            this.debugLog('Workspace folders changed - clearing all caches');
-            this.cachedLinks.clear();
-            this.debounceTimers.clear();
-        });
-        
-        this.debugLog('File system watcher enabled for all C# and view files');
-    }
-    
-    private onFileSystemChange(uri: vscode.Uri): void {
-        const filePath = uri.fsPath;
-        const fileName = path.basename(filePath);
-        
-        // Check if this is an MVC-related file
-        const isMvcFile = this.isMvcRelatedFile(filePath, fileName);
-        
-        if (isMvcFile) {
-            this.debugLog(`File system change detected: ${filePath} - invalidating relevant caches`);
-            this.cachedLinks.clear();
-            this.clearDebounceTimers();
-        }
-    }
-    
-    private isMvcRelatedFile(filePath: string, fileName: string): boolean {
-        const lowerPath = filePath.toLowerCase();
-        const lowerName = fileName.toLowerCase();
-
-        return lowerName.endsWith('.cshtml') || 
-            lowerName.endsWith('.razor') ||
-            (lowerName.endsWith('.cs') && (
-                lowerPath.includes('controller') || 
-                lowerPath.includes('/controllers/') ||
-                lowerPath.includes('\\controllers\\')
-            ));
-    }
-
-    private clearDebounceTimers(): void {
-        this.debounceTimers.clear();
-    }
-    
-    public dispose(): void {
-        if (this.fileWatcher) {
-            this.fileWatcher.dispose();
-            this.debugLog('File system watcher disposed');
-        }
-        
-        // Clean up timers
-        for (const timer of this.debounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this.debounceTimers.clear();
-        
-        // Clear caches to free memory
-        this.cachedLinks.clear();
-        this.pendingNavigations.clear();
     }
     
     private debugLog(message: string): void {
@@ -184,22 +41,12 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
     }
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
-        const cachingEnabled = this.getCachingEnabled();
         const documentKey = `${document.uri.toString()}-${document.version}`;
         
         // Debounce rapid document changes
         const debounceKey = document.uri.toString();
         if (this.debounceTimers.has(debounceKey)) {
             clearTimeout(this.debounceTimers.get(debounceKey)!);
-        }
-        
-        // Check cache first (only if caching is enabled)
-        if (cachingEnabled) {
-            const cached = this.cachedLinks.get(documentKey);
-            if (cached && cached.version === document.version) {
-                this.debugLog(`Using cached links for ${document.fileName} (${cached.links.length} links)`);
-                return cached.links;
-            }
         }
         
         const links: vscode.DocumentLink[] = [];
@@ -220,18 +67,6 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             this.processTagHelperNavigations(document, links);
             
             this.debugLog(`Found ${links.length} links in ${document.fileName}`);
-        }
-
-        // Cache the results (only if caching is enabled)
-        if (cachingEnabled) {
-            this.cachedLinks.set(documentKey, { links, version: document.version });
-            
-            // Clean up old cache entries (keep only last 50)
-            if (this.cachedLinks.size > 50) {
-                const entries = Array.from(this.cachedLinks.entries());
-                const toDelete = entries.slice(0, entries.length - 50);
-                toDelete.forEach(([key]) => this.cachedLinks.delete(key));
-            }
         }
         
         // Clean up old debounce timers (keep only last 20)
@@ -2839,5 +2674,13 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         }
         
         this.debugLog(`Partial tag helper processing complete.`);
+    }
+
+    dispose(): void {
+        // Clear any pending debounce timers
+        for (const timer of this.debounceTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.debounceTimers.clear();
     }
 }

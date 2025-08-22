@@ -52,26 +52,11 @@
       {
         "command": "vscode-mvcnavigator.navigateToController",
         "title": "Navigate to Controller Class"
-      },
-      {
-        "command": "vscode-mvcnavigator.clearCache",
-        "title": "Clear Navigation Cache",
-        "category": "MVC Navigator"
       }
     ],
     "configuration": {
       "title": "ASP.NET MVC Navigator",
       "properties": {
-        "mvcNavigator.enableCaching": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable caching of navigation links for better performance. When disabled, links are processed fresh every time."
-        },
-        "mvcNavigator.enableFileWatcher": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable file system watching for automatic cache invalidation when C# controllers or view files change. Watches all .cs, .cshtml, and .razor files for comprehensive MVC support."
-        },
         "mvcNavigator.enableDebugLogging": {
           "type": "boolean",
           "default": false,
