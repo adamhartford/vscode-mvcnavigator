@@ -74,6 +74,29 @@ const FORM_METHOD_REGEX = /\bmethod\s*=\s*["']([^"']+)["']/i;
 const FORM_METHOD_POST_REGEX = /FormMethod\.Post/;
 const FORM_METHOD_GET_REGEX = /FormMethod\.Get/;
 
+class MvcDefinitionProvider implements vscode.DefinitionProvider {
+    private linkProvider: MvcDocumentLinkProvider;
+
+    constructor(linkProvider: MvcDocumentLinkProvider) {
+        this.linkProvider = linkProvider;
+    }
+
+    provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.Definition | vscode.LocationLink[]> {
+        // Check if the position is within any of our document links
+        const links = this.linkProvider.provideDocumentLinks(document);
+        
+        for (const link of links) {
+            if (link.range.contains(position)) {
+                // Return empty array to prevent default Go to Definition behavior
+                return [];
+            }
+        }
+        
+        // Return undefined to allow default behavior for other positions
+        return undefined;
+    }
+}
+
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number }>();
     
@@ -2503,6 +2526,25 @@ export function activate(context: vscode.ExtensionContext) {
         linkProvider
     );
 
+    // Register definition provider to prevent default Go to Definition behavior on our links
+    const definitionProvider = new MvcDefinitionProvider(linkProvider);
+    const disposableDefinitionProvider = vscode.languages.registerDefinitionProvider(
+        { language: 'csharp' },
+        definitionProvider
+    );
+
+    // Register definition provider for Razor files as well
+    const disposableRazorDefinitionProvider = vscode.languages.registerDefinitionProvider(
+        [
+            { language: 'html' }, 
+            { language: 'razor' }, 
+            { language: 'aspnetcorerazor' },
+            { pattern: '**/*.cshtml' },
+            { pattern: '**/*.razor' }
+        ],
+        definitionProvider
+    );
+
     // Register custom command for action navigation with line positioning
     const disposableActionCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToAction', async (...args: any[]) => {
         try {
@@ -2878,7 +2920,15 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showWarningMessage('No View(), PartialView(), or RedirectToAction() call found on current line.');
     });
 
-    context.subscriptions.push(disposableLinkProvider, disposableRazorLinkProvider, disposableCommand, disposableActionCommand, disposableControllerCommand);
+    context.subscriptions.push(
+        disposableLinkProvider, 
+        disposableRazorLinkProvider, 
+        disposableDefinitionProvider,
+        disposableRazorDefinitionProvider,
+        disposableCommand, 
+        disposableActionCommand, 
+        disposableControllerCommand
+    );
 }
 
 // This method is called when your extension is deactivated
