@@ -69,6 +69,11 @@ const FORM_TAG_HELPER_ACTION_REGEX = /<form[^>]*asp-action\s*=\s*["']([^"']+)["'
 const FORM_TAG_HELPER_CONTROLLER_REGEX = /<form[^>]*asp-controller\s*=\s*["']([^"']+)["'][^>]*>/g;
 const FORM_TAG_HELPER_AREA_REGEX = /<form[^>]*asp-area\s*=\s*["']([^"']*)["'][^>]*>/g;  // Allow empty string for asp-area=""
 
+// Regex to extract HTTP method from form elements
+const FORM_METHOD_REGEX = /\bmethod\s*=\s*["']([^"']+)["']/i;
+const FORM_METHOD_POST_REGEX = /FormMethod\.Post/;
+const FORM_METHOD_GET_REGEX = /FormMethod\.Get/;
+
 class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number }>();
     
@@ -1105,6 +1110,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         while ((match = HTML_BEGIN_FORM_WITH_ACTION_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
+            // Extract HTTP method from the full Html.BeginForm call
+            const httpMethod = this.extractHttpMethodFromForm(match[0]);
+            
             // Find the exact position of the quoted action name
             const fullMatch = match[0];
             const quoteChar = fullMatch.includes('"') ? '"' : "'";
@@ -1116,13 +1124,20 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
                 
                 const range = new vscode.Range(startPos, endPos);
-                const actionPath = this.findActionMethodFromView(document.uri, actionName);
+                
+                // Try to find action with specific HTTP method first
+                let actionPath = this.findActionMethodFromViewWithHttpMethod(document.uri, actionName, httpMethod);
+                
+                // Fallback to regular search if no HTTP-specific action found
+                if (!actionPath) {
+                    actionPath = this.findActionMethodFromView(document.uri, actionName);
+                }
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
                     const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
-                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    link.tooltip = `Navigate to ${actionName} action method (${httpMethod}) (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
                 }
             }
@@ -1137,6 +1152,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const actionName = match[1];
             const controllerName = match[2];
             
+            // Extract HTTP method from the full Html.BeginForm call
+            const httpMethod = this.extractHttpMethodFromForm(match[0]);
+            
             // Find the exact position of the quoted action name
             const fullMatch = match[0];
             const quoteChar = fullMatch.includes('"') ? '"' : "'";
@@ -1148,13 +1166,20 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
                 
                 const range = new vscode.Range(startPos, endPos);
-                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                // Try to find action with specific HTTP method first
+                let actionPath = this.findActionMethodInControllerWithHttpMethod(document.uri, actionName, controllerName, httpMethod);
+                
+                // Fallback to regular search if no HTTP-specific action found
+                if (!actionPath) {
+                    actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                }
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
                     const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
-                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    link.tooltip = `Navigate to ${actionName} action (${httpMethod}) in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
                 }
             }
@@ -1189,6 +1214,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const actionName = match[1];
             const controllerName = match[2];
             
+            // Extract HTTP method from the full Html.BeginForm call
+            const httpMethod = this.extractHttpMethodFromForm(match[0]);
+            
             // Find the exact position of the quoted action name
             const fullMatch = match[0];
             const quoteChar = fullMatch.includes('"') ? '"' : "'";
@@ -1200,13 +1228,20 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
                 
                 const range = new vscode.Range(startPos, endPos);
-                const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                
+                // Try to find action with specific HTTP method first
+                let actionPath = this.findActionMethodInControllerWithHttpMethod(document.uri, actionName, controllerName, httpMethod);
+                
+                // Fallback to regular search if no HTTP-specific action found
+                if (!actionPath) {
+                    actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                }
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
                     const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
-                    link.tooltip = `Navigate to ${actionName} action in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                    link.tooltip = `Navigate to ${actionName} action (${httpMethod}) in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
                 }
             }
@@ -1240,6 +1275,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         while ((match = HTML_BEGIN_FORM_ANONYMOUS_OBJECT_REGEX.exec(text)) !== null) {
             const actionName = match[1];
             
+            // Extract HTTP method from the full Html.BeginForm call
+            const httpMethod = this.extractHttpMethodFromForm(match[0]);
+            
             // Find the exact position of the quoted action name
             const fullMatch = match[0];
             const quoteChar = fullMatch.includes('"') ? '"' : "'";
@@ -1251,13 +1289,20 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
                 
                 const range = new vscode.Range(startPos, endPos);
-                const actionPath = this.findActionMethodFromView(document.uri, actionName);
+                
+                // Try to find action with specific HTTP method first
+                let actionPath = this.findActionMethodFromViewWithHttpMethod(document.uri, actionName, httpMethod);
+                
+                // Fallback to regular search if no HTTP-specific action found
+                if (!actionPath) {
+                    actionPath = this.findActionMethodFromView(document.uri, actionName);
+                }
                 
                 if (actionPath) {
                     // Create command URI for precise navigation
                     const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
                     const link = new vscode.DocumentLink(range, commandUri);
-                    link.tooltip = `Navigate to ${actionName} action method (line ${actionPath.lineNumber || '?'})`;
+                    link.tooltip = `Navigate to ${actionName} action method (${httpMethod}) (line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
                 }
             }
@@ -1903,6 +1948,36 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         return null;
     }
 
+    // Enhanced method that considers HTTP method for form-based navigation
+    private findActionMethodFromViewWithHttpMethod(viewUri: vscode.Uri, actionName: string, httpMethod: string): { filePath: string; lineNumber?: number } | null {
+        const viewPath = viewUri.fsPath;
+        const controllerName = this.extractControllerNameFromViewPath(viewPath);
+        
+        if (controllerName) {
+            return this.findActionMethodInControllerWithHttpMethod(viewUri, actionName, controllerName, httpMethod);
+        }
+        
+        return null;
+    }
+
+    private findActionMethodInControllerWithHttpMethod(currentControllerUri: vscode.Uri, actionName: string, controllerName: string, httpMethod: string): { filePath: string; lineNumber?: number } | null {
+        const targetControllerPath = this.findControllerFile(currentControllerUri, controllerName);
+        if (!targetControllerPath) {
+            return null;
+        }
+
+        return this.searchActionInFileWithHttpMethod(targetControllerPath, actionName, httpMethod);
+    }
+
+    private findActionMethodInControllerWithAreaAndHttpMethod(currentControllerUri: vscode.Uri, actionName: string, controllerName: string, areaName: string, httpMethod: string): { filePath: string; lineNumber?: number } | null {
+        const targetControllerPath = this.findControllerFileInArea(currentControllerUri, controllerName, areaName);
+        if (!targetControllerPath) {
+            return null;
+        }
+
+        return this.searchActionInFileWithHttpMethod(targetControllerPath, actionName, httpMethod);
+    }
+
     private extractControllerNameFromViewPath(viewPath: string): string | null {
         // Handle paths like:
         // - "/Views/Home/Index.cshtml" -> "Home"
@@ -2109,6 +2184,82 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         return null;
     }
 
+    // Enhanced method to search for actions with specific HTTP method preference
+    private searchActionInFileWithHttpMethod(filePath: string, actionName: string, httpMethod: string): { filePath: string; lineNumber?: number } | null {
+        try {
+            if (!fs.existsSync(filePath)) {
+                return null;
+            }
+
+            const content = fs.readFileSync(filePath, 'utf8');
+            const lines = content.split('\n');
+            
+            // Look for action method declarations with HTTP method attributes
+            const httpMethodRegex = new RegExp(`Http${httpMethod}`, 'i');
+            const actionRegex = new RegExp(
+                `(?:public|private|protected|internal)?\\s*(?:async\\s+)?(?:Task<)?(?:IActionResult|ActionResult|IActionResult<[^>]+>|ActionResult<[^>]+>)>?\\s+${actionName}\\s*\\([^)]*\\)`,
+                'i'
+            );
+            
+            let preferredActionLine = null;
+            let fallbackActionLine = null;
+            
+            for (let i = 0; i < lines.length; i++) {
+                if (actionRegex.test(lines[i])) {
+                    const actionResult = {
+                        filePath: filePath,
+                        lineNumber: i + 1
+                    };
+                    
+                    // Check for HTTP method attribute in previous lines (up to 5 lines before)
+                    let hasHttpMethodAttribute = false;
+                    for (let j = Math.max(0, i - 5); j < i; j++) {
+                        if (httpMethodRegex.test(lines[j])) {
+                            hasHttpMethodAttribute = true;
+                            break;
+                        }
+                    }
+                    
+                    if (hasHttpMethodAttribute) {
+                        preferredActionLine = actionResult;
+                        break; // Found action with matching HTTP method
+                    } else if (!fallbackActionLine) {
+                        fallbackActionLine = actionResult;
+                    }
+                }
+            }
+            
+            // Return preferred action if found, otherwise fallback
+            return preferredActionLine || fallbackActionLine;
+        } catch (error) {
+            // Continue searching
+        }
+        
+        return null;
+    }
+
+    // Helper method to extract HTTP method from form elements
+    private extractHttpMethodFromForm(formElementText: string): string {
+        // Check for explicit method attribute in tag helpers and HTML forms
+        const methodMatch = formElementText.match(FORM_METHOD_REGEX);
+        if (methodMatch) {
+            return methodMatch[1].toUpperCase();
+        }
+        
+        // Check for FormMethod.Post in Html.BeginForm
+        if (FORM_METHOD_POST_REGEX.test(formElementText)) {
+            return 'POST';
+        }
+        
+        // Check for FormMethod.Get in Html.BeginForm
+        if (FORM_METHOD_GET_REGEX.test(formElementText)) {
+            return 'GET';
+        }
+        
+        // Default assumption: if method is not specified, it's POST for forms
+        return 'POST';
+    }
+
     private resolveFullViewPath(controllerUri: vscode.Uri, fullPath: string): string | null {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(controllerUri);
         if (!workspaceFolder) {
@@ -2264,6 +2415,9 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const controllerName = controllerMatch ? controllerMatch[1] : null;
             const areaName = areaMatch ? (areaMatch[1] || null) : null;  // Treat empty string as null
             
+            // Extract HTTP method from the form tag
+            const httpMethod = this.extractHttpMethodFromForm(fullMatch);
+            
             // Create range for the action name (excluding quotes)
             const actionStart = match.index + fullMatch.indexOf(`"${actionName}"`) + 1;
             const actionEnd = actionStart + actionName.length;
@@ -2272,20 +2426,33 @@ class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 document.positionAt(actionEnd)
             );
             
-            // Find the action file using area-aware method
+            // Find the action file using area-aware method with HTTP method detection
             let actionPath = null;
             if (controllerName && areaName) {
-                actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+                // Try with HTTP method first, then fallback
+                actionPath = this.findActionMethodInControllerWithAreaAndHttpMethod(document.uri, actionName, controllerName, areaName, httpMethod);
+                if (!actionPath) {
+                    actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+                }
             } else if (controllerName) {
-                actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                // Try with HTTP method first, then fallback
+                actionPath = this.findActionMethodInControllerWithHttpMethod(document.uri, actionName, controllerName, httpMethod);
+                if (!actionPath) {
+                    actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                }
             } else {
                 // When no controller specified, use view context to find the controller
-                actionPath = this.findActionMethodFromView(document.uri, actionName);
+                actionPath = this.findActionMethodFromViewWithHttpMethod(document.uri, actionName, httpMethod);
+                if (!actionPath) {
+                    actionPath = this.findActionMethodFromView(document.uri, actionName);
+                }
             }
             
             if (actionPath) {
                 const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
-                links.push(new vscode.DocumentLink(actionRange, commandUri));
+                const link = new vscode.DocumentLink(actionRange, commandUri);
+                link.tooltip = `Navigate to ${actionName} action (${httpMethod}) (line ${actionPath.lineNumber || '?'})`;
+                links.push(link);
             }
             
             // If controller is specified, create link for it too

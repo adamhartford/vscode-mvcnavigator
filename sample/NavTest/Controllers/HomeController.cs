@@ -18,6 +18,11 @@ public class HomeController : Controller
         return View();
     }
 
+    public IActionResult Index2()
+    {
+        return View("Index");
+    }
+
     [HttpPost, ValidateAntiForgeryToken]
     public IActionResult Index(IFormCollection formCollection)
     {

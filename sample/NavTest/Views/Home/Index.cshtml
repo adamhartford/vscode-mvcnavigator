@@ -17,7 +17,29 @@
     <button type="submit" class="btn btn-primary">Submit</button>
 }
 
+@using (Html.BeginForm("Index", "Home", FormMethod.Get))
+{
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-primary">Submit</button>
+}
+
+@using (Html.BeginForm("Index"))
+{
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-primary">Submit</button>
+}
+
 <form asp-action="Index" asp-controller="Home" method="post">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+
+<form asp-action="Index" asp-controller="Home" method="get">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+
+<form asp-action="Index" asp-controller="Home">
     @Html.AntiForgeryToken()
     <button type="submit" class="btn btn-primary">Submit</button>
 </form>
