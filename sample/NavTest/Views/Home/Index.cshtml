@@ -1,5 +1,6 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
+    var obj = new { Foo = "Bar" };
 }
 
 <div class="text-center">
@@ -43,3 +44,17 @@
     @Html.AntiForgeryToken()
     <button type="submit" class="btn btn-primary">Submit</button>
 </form>
+
+@Html.Partial("_MyPartial", obj)
+
+@await Html.PartialAsync("_MyPartial", obj)
+
+<partial name="_MyPartial" />
+
+<partial name="_MyPartial" model="obj" />
+
+@await Html.PartialAsync("~/Views/Shared/_Navigation.cshtml")
+
+<partial name="~/Views/Shared/_Navigation.cshtml" />
+
+<partial name="~/Views/Shared/_Navigation.cshtml" model="obj"/>

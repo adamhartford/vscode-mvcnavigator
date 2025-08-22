@@ -65,6 +65,10 @@ export const FORM_TAG_HELPER_ACTION_REGEX = /<form[^>]*asp-action\s*=\s*["']([^"
 export const FORM_TAG_HELPER_CONTROLLER_REGEX = /<form[^>]*asp-controller\s*=\s*["']([^"']+)["'][^>]*>/g;
 export const FORM_TAG_HELPER_AREA_REGEX = /<form[^>]*asp-area\s*=\s*["']([^"']*)["'][^>]*>/g;  // Allow empty string for asp-area=""
 
+// Regular expressions to match Partial Tag Helper
+export const PARTIAL_TAG_HELPER_NAME_REGEX = /<partial[^>]*name\s*=\s*["']([^"']+)["'][^>]*>/g;
+export const PARTIAL_TAG_HELPER_FULL_PATH_REGEX = /<partial[^>]*name\s*=\s*["'](~\/[^"']+\.cshtml?)["'][^>]*>/g;
+
 // Regex to extract HTTP method from form elements
 export const FORM_METHOD_REGEX = /\bmethod\s*=\s*["']([^"']+)["']/i;
 export const FORM_METHOD_POST_REGEX = /FormMethod\.Post/;

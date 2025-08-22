@@ -178,6 +178,9 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle <form asp-action="..." asp-controller="..." asp-area="..."> tag helpers
         this.processFormTagHelpers(document, text, links);
         
+        // Handle <partial name="..." /> tag helpers
+        this.processPartialTagHelpers(document, text, links);
+        
         console.log(`[MVC Navigator] Tag helper processing complete for ${document.fileName}`);
     }
 
@@ -2406,5 +2409,75 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 }
             }
         }
+    }
+
+    private processPartialTagHelpers(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        // Handle <partial name="PartialViewName" />
+        let match;
+        
+        console.log(`[MVC Navigator] Processing partial tag helpers...`);
+        
+        // First, process full path partial tag helpers (more specific pattern)
+        RegexPatterns.PARTIAL_TAG_HELPER_FULL_PATH_REGEX.lastIndex = 0;
+        
+        while ((match = RegexPatterns.PARTIAL_TAG_HELPER_FULL_PATH_REGEX.exec(text)) !== null) {
+            const fullPath = match[1]; // The full path like "~/Views/Shared/_Navigation.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${fullPath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                const range = new vscode.Range(startPos, endPos);
+                
+                console.log(`[MVC Navigator] Found partial tag helper with full path: "${fullPath}" at line ${startPos.line + 1}`);
+                
+                const resolvedPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (resolvedPath) {
+                    console.log(`[MVC Navigator] Resolved full path to: ${resolvedPath}`);
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(fullPath)} (partial tag helper with full path)`;
+                    links.push(link);
+                } else {
+                    console.log(`[MVC Navigator] Could not resolve full path: ${fullPath}`);
+                }
+            }
+        }
+        
+        // Then, process regular partial tag helpers (less specific pattern, to avoid conflicts)
+        RegexPatterns.PARTIAL_TAG_HELPER_NAME_REGEX.lastIndex = 0;
+        
+        while ((match = RegexPatterns.PARTIAL_TAG_HELPER_NAME_REGEX.exec(text)) !== null) {
+            const partialViewName = match[1];
+            
+            // Skip if this looks like a full path (starts with ~/) - already handled above
+            if (partialViewName.startsWith('~/')) {
+                continue;
+            }
+            
+            const startPos = document.positionAt(match.index + match[0].indexOf(match[1]) - 1); // Include the quote
+            const endPos = document.positionAt(match.index + match[0].indexOf(match[1]) + match[1].length + 1); // Include the quote
+            const range = new vscode.Range(startPos, endPos);
+            
+            console.log(`[MVC Navigator] Found partial tag helper: name="${partialViewName}" at line ${startPos.line + 1}`);
+            
+            // Find the partial view file
+            const viewPath = this.findPartialViewFile(document.uri, partialViewName);
+            if (viewPath) {
+                console.log(`[MVC Navigator] Found partial view file: ${viewPath}`);
+                const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                link.tooltip = `Navigate to ${partialViewName}.cshtml`;
+                links.push(link);
+            } else {
+                console.log(`[MVC Navigator] Partial view file not found for: ${partialViewName}`);
+            }
+        }
+        
+        console.log(`[MVC Navigator] Partial tag helper processing complete.`);
     }
 }
