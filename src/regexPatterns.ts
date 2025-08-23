@@ -79,3 +79,10 @@ export const PARTIAL_TAG_HELPER_FULL_PATH_REGEX = /<partial[^>]*name\s*=\s*["'](
 export const FORM_METHOD_REGEX = /\bmethod\s*=\s*["']([^"']+)["']/i;
 export const FORM_METHOD_POST_REGEX = /FormMethod\.Post/;
 export const FORM_METHOD_GET_REGEX = /FormMethod\.Get/;
+
+// Regular expressions to match View Component calls
+export const COMPONENT_INVOKE_ASYNC_WITH_NAME_REGEX = /@?await\s+Component\.InvokeAsync\s*\(\s*["']([^"']+)["']\s*\)/g;
+export const COMPONENT_INVOKE_ASYNC_WITH_NAME_AND_PARAMS_REGEX = /@?await\s+Component\.InvokeAsync\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
+
+// Regular expressions to match View Component tag helpers
+export const VIEW_COMPONENT_TAG_HELPER_REGEX = /<vc:([a-zA-Z-]+)[^>]*>/g;

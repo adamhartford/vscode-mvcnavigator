@@ -173,6 +173,78 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // Register custom command for view component navigation
+    const disposableViewComponentCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToViewComponent', async (...args: any[]) => {
+        try {
+            let filePath: string;
+            let componentName: string | undefined;
+            
+            // Handle different argument formats
+            if (args.length >= 1) {
+                const arg = args[0];
+                if (typeof arg === 'string') {
+                    // Check if it's a link ID or direct path
+                    if (linkProvider.pendingNavigations.has(arg)) {
+                        const navData = linkProvider.pendingNavigations.get(arg)!;
+                        filePath = navData.path;
+                        componentName = navData.componentName;
+                        // Clean up the stored navigation
+                        linkProvider.pendingNavigations.delete(arg);
+                    } else {
+                        // Direct path (legacy format)
+                        filePath = arg;
+                    }
+                } else {
+                    throw new Error(`Invalid argument type: ${typeof arg}`);
+                }
+            } else {
+                throw new Error('No arguments provided to navigateToViewComponent command');
+            }
+            
+            if (!filePath || typeof filePath !== 'string') {
+                throw new Error(`Invalid filePath parameter: ${filePath} (type: ${typeof filePath})`);
+            }
+            
+            const viewComponentUri = vscode.Uri.file(filePath);
+            
+            // First, read the file content to find the view component class definition line
+            const document = await vscode.workspace.openTextDocument(viewComponentUri);
+            const content = document.getText();
+            const lines = content.split('\n');
+            
+            // Look for specific view component class declaration if componentName is provided
+            let classPosition = new vscode.Position(0, 0); // Default to top of file
+            
+            if (componentName) {
+                // Look for specific component class
+                const specificClassRegex = new RegExp(`^\\s*(?:public|internal|private|protected)?\\s*(?:abstract|sealed)?\\s*class\\s+(${componentName}ViewComponent)\\s*:\\s*ViewComponent`);
+                for (let i = 0; i < lines.length; i++) {
+                    if (specificClassRegex.test(lines[i])) {
+                        classPosition = new vscode.Position(i, 0);
+                        break;
+                    }
+                }
+            } else {
+                // Look for any view component class declaration (fallback)
+                const classRegex = /^\s*(?:public|internal|private|protected)?\s*(?:abstract|sealed)?\s*class\s+(\w+ViewComponent)\s*:\s*ViewComponent/;
+                for (let i = 0; i < lines.length; i++) {
+                    if (classRegex.test(lines[i])) {
+                        classPosition = new vscode.Position(i, 0);
+                        break;
+                    }
+                }
+            }
+            
+            // Open the document with the cursor positioned at the class definition
+            const range = new vscode.Range(classPosition, classPosition);
+            await vscode.window.showTextDocument(document, {
+                selection: range
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to navigate to view component: ${error}`);
+        }
+    });
+
     // Register command for manual navigation
     const disposableCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToView', async () => {
         const editor = vscode.window.activeTextEditor;
@@ -447,6 +519,7 @@ export function activate(context: vscode.ExtensionContext) {
         disposableCommand, 
         disposableActionCommand, 
         disposableControllerCommand,
+        disposableViewComponentCommand,
         linkProvider // Add the link provider for proper disposal
     );
 }

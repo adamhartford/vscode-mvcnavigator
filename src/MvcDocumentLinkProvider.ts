@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as RegexPatterns from './regexPatterns';
 
 export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vscode.Disposable {
-    public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number }>();
+    public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number; componentName?: string }>();
     private debounceTimers = new Map<string, NodeJS.Timeout>();
     private fileWatcher: vscode.FileSystemWatcher | undefined;
     
@@ -38,6 +38,17 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             path: filePath 
         });
         return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([linkId]))}`);
+    }
+
+    // Helper method to create view component command URIs with proper parameter handling
+    private createViewComponentCommandUri(filePath: string, componentName?: string): vscode.Uri {
+        const linkId = `viewcomponent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.pendingNavigations.set(linkId, { 
+            type: 'viewcomponent', 
+            path: filePath,
+            componentName: componentName
+        });
+        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToViewComponent?${encodeURIComponent(JSON.stringify([linkId]))}`);
     }
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
@@ -85,6 +96,9 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
     private processCSharpNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
         const text = document.getText();
         
+        // Handle View Component View() calls FIRST (before regular view processing)
+        this.processViewComponentViewCalls(document, text, links);
+
         // Handle View("ViewName") calls
         this.processViewCallsWithName(document, text, links);
         
@@ -200,6 +214,10 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
 
         // Handle @await Html.PartialAsync("PartialName") calls
         this.processHtmlPartialAsyncWithName(document, text, links);
+
+        // Handle View Component calls
+        this.processViewComponentInvokeAsync(document, text, links);
+        this.processViewComponentInvokeAsyncWithParams(document, text, links);
     }
 
     private processTagHelperNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
@@ -216,6 +234,9 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         
         // Handle <partial name="..." /> tag helpers
         this.processPartialTagHelpers(document, text, links);
+        
+        // Handle <vc:component-name> tag helpers
+        this.processViewComponentTagHelpers(document, text, links);
         
         this.debugLog(`Tag helper processing complete for ${document.fileName}`);
     }
@@ -265,6 +286,11 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         RegexPatterns.VIEW_CALL_PARAMETERLESS_REGEX.lastIndex = 0;
 
         while ((match = RegexPatterns.VIEW_CALL_PARAMETERLESS_REGEX.exec(text)) !== null) {
+            // Skip this View() call if it's inside a view component class
+            if (this.isPositionInViewComponent(text, match.index)) {
+                continue;
+            }
+
             const actionName = this.getActionNameFromPosition(document, match.index);
             if (actionName) {
                 // Find the "View" text within the match
@@ -353,6 +379,11 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         RegexPatterns.VIEW_CALL_WITH_MODEL_REGEX.lastIndex = 0;
 
         while ((match = RegexPatterns.VIEW_CALL_WITH_MODEL_REGEX.exec(text)) !== null) {
+            // Skip this View() call if it's inside a view component class
+            if (this.isPositionInViewComponent(text, match.index)) {
+                continue;
+            }
+
             const actionName = this.getActionNameFromPosition(document, match.index);
             if (actionName) {
                 // Find the "View" text within the match
@@ -528,13 +559,20 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             const controllerEndPos = document.positionAt(match.index + match[0].lastIndexOf(match[2]) + match[2].length + 1);
             const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
             
-            const controllerPath = this.findControllerFile(document.uri, controllerName);
-            if (controllerPath) {
-                // Create command URI for controller navigation
-                const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
-                const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
-                controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
-                links.push(controllerLink);
+            const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
+            if (controllerInfo) {
+                if (controllerInfo.lineNumber) {
+                    const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
+                    links.push(controllerLink);
+                } else {
+                    // Create command URI for controller navigation
+                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerInfo.filePath]))}`);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
             }
         }
     }
@@ -780,17 +818,16 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
                 const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
-                const controllerPath = this.findControllerFile(document.uri, controllerName);
-                if (controllerPath) {
-                    const classLine = this.findControllerClassLine(controllerPath, controllerName);
-                    if (classLine) {
-                        const commandUri = this.createActionCommandUri(controllerPath, classLine);
+                const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
+                if (controllerInfo) {
+                    if (controllerInfo.lineNumber) {
+                        const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
                         const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
                         links.push(controllerLink);
                     } else {
                         // Create command URI for controller navigation
-                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerInfo.filePath]))}`);
                         const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
                         links.push(controllerLink);
@@ -836,17 +873,16 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
                 const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
-                const controllerPath = this.findControllerFile(document.uri, controllerName);
-                if (controllerPath) {
-                    const classLine = this.findControllerClassLine(controllerPath, controllerName);
-                    if (classLine) {
-                        const commandUri = this.createActionCommandUri(controllerPath, classLine);
+                const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
+                if (controllerInfo) {
+                    if (controllerInfo.lineNumber) {
+                        const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
                         const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
                         links.push(controllerLink);
                     } else {
                         // Create command URI for controller navigation
-                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
+                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerInfo.filePath]))}`);
                         const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
                         links.push(controllerLink);
@@ -1672,6 +1708,196 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         }
     }
 
+    // View Component processing methods
+    private processViewComponentInvokeAsync(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.COMPONENT_INVOKE_ASYNC_WITH_NAME_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.COMPONENT_INVOKE_ASYNC_WITH_NAME_REGEX.exec(text)) !== null) {
+            const componentName = match[1];
+            
+            // Find the exact position of the quoted component name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const componentNameWithQuotes = `${quoteChar}${componentName}${quoteChar}`;
+            const componentStartInMatch = fullMatch.indexOf(componentNameWithQuotes);
+            
+            if (componentStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + componentStartInMatch);
+                const endPos = document.positionAt(match.index + componentStartInMatch + componentNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const componentPath = this.findViewComponentFile(document.uri, componentName);
+                
+                if (componentPath) {
+                    const link = new vscode.DocumentLink(range, this.createViewComponentCommandUri(componentPath, componentName));
+                    link.tooltip = `Navigate to ${componentName} view component`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processViewComponentInvokeAsyncWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.COMPONENT_INVOKE_ASYNC_WITH_NAME_AND_PARAMS_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.COMPONENT_INVOKE_ASYNC_WITH_NAME_AND_PARAMS_REGEX.exec(text)) !== null) {
+            const componentName = match[1];
+            
+            // Find the exact position of the quoted component name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const componentNameWithQuotes = `${quoteChar}${componentName}${quoteChar}`;
+            const componentStartInMatch = fullMatch.indexOf(componentNameWithQuotes);
+            
+            if (componentStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + componentStartInMatch);
+                const endPos = document.positionAt(match.index + componentStartInMatch + componentNameWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const componentPath = this.findViewComponentFile(document.uri, componentName);
+                
+                if (componentPath) {
+                    const link = new vscode.DocumentLink(range, this.createViewComponentCommandUri(componentPath, componentName));
+                    link.tooltip = `Navigate to ${componentName} view component`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processViewComponentTagHelpers(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.VIEW_COMPONENT_TAG_HELPER_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.VIEW_COMPONENT_TAG_HELPER_REGEX.exec(text)) !== null) {
+            const tagName = match[1]; // e.g., "navigation-menu"
+            const componentName = this.convertKebabCaseToPascalCase(tagName); // Convert to "NavigationMenu"
+            
+            // Find the exact position of the tag name
+            const fullMatch = match[0];
+            const tagStartInMatch = fullMatch.indexOf(tagName);
+            
+            if (tagStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + tagStartInMatch);
+                const endPos = document.positionAt(match.index + tagStartInMatch + tagName.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const componentPath = this.findViewComponentFile(document.uri, componentName);
+                
+                if (componentPath) {
+                    const link = new vscode.DocumentLink(range, this.createViewComponentCommandUri(componentPath, componentName));
+                    link.tooltip = `Navigate to ${componentName} view component`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // Process View() calls within view components
+    private processViewComponentViewCalls(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        // Look for View() calls within view component classes
+        const viewComponentClassRegex = /class\s+(\w+)ViewComponent\s*:\s*ViewComponent/g;
+        let viewComponentMatch;
+        
+        while ((viewComponentMatch = viewComponentClassRegex.exec(text)) !== null) {
+            const componentName = viewComponentMatch[1]; // e.g., "Home"
+            const classStartIndex = viewComponentMatch.index;
+            
+            // Find the end of this view component class
+            const classEndIndex = this.findClassEndIndex(text, classStartIndex);
+            
+            // Look for View() calls within this class
+            const classContent = text.substring(classStartIndex, classEndIndex);
+            
+            // Find parameterless View() calls
+            const viewCallRegex = /\breturn\s+View\s*\(\s*\)/g;
+            let viewCallMatch;
+            
+            while ((viewCallMatch = viewCallRegex.exec(classContent)) !== null) {
+                const absoluteIndex = classStartIndex + viewCallMatch.index;
+                const viewCallStart = absoluteIndex + viewCallMatch[0].indexOf('View');
+                const viewCallEnd = absoluteIndex + viewCallMatch[0].indexOf('View') + 4; // "View".length
+                
+                const startPos = document.positionAt(viewCallStart);
+                const endPos = document.positionAt(viewCallEnd);
+                const range = new vscode.Range(startPos, endPos);
+                
+                // Find the view component's view file
+                const viewPath = this.findViewComponentViewFile(document.uri, componentName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${componentName} view component view (Default.cshtml)`;
+                    links.push(link);
+                }
+            }
+            
+            // Find View() calls with string parameter
+            const viewCallWithNameRegex = /\breturn\s+View\s*\(\s*["']([^"']+)["']\s*\)/g;
+            let viewCallWithNameMatch;
+            
+            while ((viewCallWithNameMatch = viewCallWithNameRegex.exec(classContent)) !== null) {
+                const viewName = viewCallWithNameMatch[1];
+                const absoluteIndex = classStartIndex + viewCallWithNameMatch.index;
+                const viewCallStart = absoluteIndex + viewCallWithNameMatch[0].indexOf('"' + viewName) || absoluteIndex + viewCallWithNameMatch[0].indexOf("'" + viewName);
+                const viewCallEnd = viewCallStart + viewName.length + 2; // Include quotes
+                
+                const startPos = document.positionAt(viewCallStart);
+                const endPos = document.positionAt(viewCallEnd);
+                const range = new vscode.Range(startPos, endPos);
+                
+                // Find the specific view component view file
+                const viewPath = this.findViewComponentViewFileByName(document.uri, componentName, viewName);
+                
+                if (viewPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
+                    link.tooltip = `Navigate to ${componentName} view component view (${viewName}.cshtml)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private findClassEndIndex(text: string, classStartIndex: number): number {
+        let braceCount = 0;
+        let inClass = false;
+        
+        for (let i = classStartIndex; i < text.length; i++) {
+            const char = text[i];
+            
+            if (char === '{') {
+                braceCount++;
+                inClass = true;
+            } else if (char === '}') {
+                braceCount--;
+                if (inClass && braceCount === 0) {
+                    return i + 1;
+                }
+            }
+        }
+        
+        return text.length; // Return end of file if no closing brace found
+    }
+
+    private isPositionInViewComponent(text: string, position: number): boolean {
+        // Find all view component classes and check if position is within any of them
+        const viewComponentClassRegex = /class\s+(\w+)ViewComponent\s*:\s*ViewComponent/g;
+        let viewComponentMatch;
+        
+        while ((viewComponentMatch = viewComponentClassRegex.exec(text)) !== null) {
+            const classStartIndex = viewComponentMatch.index;
+            const classEndIndex = this.findClassEndIndex(text, classStartIndex);
+            
+            if (position >= classStartIndex && position < classEndIndex) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
     private getActionNameFromPosition(document: vscode.TextDocument, position: number): string | null {
         const textUpToPosition = document.getText(new vscode.Range(new vscode.Position(0, 0), document.positionAt(position)));
         
@@ -1796,6 +2022,263 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             const viewPath = this.searchPartialViewInProject(projectRoot, controllerName, partialViewName, areaInfo);
             if (viewPath) {
                 return viewPath;
+            }
+        }
+
+        return null;
+    }
+
+    // View Component helper methods
+    private findViewComponentFile(uri: vscode.Uri, componentName: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        const workspaceRoot = workspaceFolder.uri.fsPath;
+        const projectRoots = this.findMvcProjectRootsFromView(workspaceRoot, uri.fsPath);
+
+        for (const projectRoot of projectRoots) {
+            // First, try to find a dedicated view component file
+            const dedicatedComponentPath = this.findDedicatedViewComponentFile(projectRoot, componentName);
+            if (dedicatedComponentPath) {
+                return dedicatedComponentPath;
+            }
+
+            // If not found, search for view component classes within other C# files
+            const inlineComponentPath = this.findInlineViewComponentClass(projectRoot, componentName);
+            if (inlineComponentPath) {
+                return inlineComponentPath;
+            }
+        }
+
+        return null;
+    }
+
+    private findDedicatedViewComponentFile(projectRoot: string, componentName: string): string | null {
+        // Standard view component locations for dedicated files
+        const possiblePaths = [
+            // ViewComponents folder in project root
+            path.join(projectRoot, 'ViewComponents', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'ViewComponents', `${componentName}.cs`),
+            
+            // Components folder variations
+            path.join(projectRoot, 'Components', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'Components', `${componentName}.cs`),
+            
+            // Areas structure
+            path.join(projectRoot, 'Areas', '*', 'ViewComponents', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'Areas', '*', 'ViewComponents', `${componentName}.cs`),
+            path.join(projectRoot, 'Areas', '*', 'Components', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'Areas', '*', 'Components', `${componentName}.cs`),
+            
+            // src folder variations
+            path.join(projectRoot, 'src', 'ViewComponents', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'src', 'ViewComponents', `${componentName}.cs`),
+            path.join(projectRoot, 'src', 'Components', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'src', 'Components', `${componentName}.cs`),
+
+            // Web folder variations
+            path.join(projectRoot, 'Web', 'ViewComponents', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'Web', 'ViewComponents', `${componentName}.cs`),
+            path.join(projectRoot, 'Web', 'Components', `${componentName}ViewComponent.cs`),
+            path.join(projectRoot, 'Web', 'Components', `${componentName}.cs`),
+        ];
+
+        // Check each possible path
+        for (const filePath of possiblePaths) {
+            // Handle wildcard paths for Areas
+            if (filePath.includes('*')) {
+                const globPattern = filePath.replace(/\\/g, '/');
+                try {
+                    const glob = require('glob');
+                    const matches = glob.sync(globPattern);
+                    if (matches && matches.length > 0) {
+                        // Return the first match and verify it exists
+                        const firstMatch = matches[0];
+                        if (fs.existsSync(firstMatch)) {
+                            return firstMatch;
+                        }
+                    }
+                } catch (error) {
+                    // Fallback if glob is not available
+                    this.debugLog(`Glob search failed for ${globPattern}: ${error}`);
+                }
+            } else if (fs.existsSync(filePath)) {
+                return filePath;
+            }
+        }
+
+        return null;
+    }
+
+    private findInlineViewComponentClass(projectRoot: string, componentName: string): string | null {
+        // Search for view component classes defined within other files (like controllers)
+        const searchPatterns = [
+            path.join(projectRoot, 'Controllers', '*.cs'),
+            path.join(projectRoot, 'Areas', '*', 'Controllers', '*.cs'),
+            path.join(projectRoot, 'src', 'Controllers', '*.cs'),
+            path.join(projectRoot, 'Web', 'Controllers', '*.cs'),
+            path.join(projectRoot, '*.cs'), // Search in root as well
+        ];
+
+        const viewComponentClassRegex = new RegExp(`\\bclass\\s+${componentName}ViewComponent\\s*:\\s*ViewComponent\\b`);
+
+        for (const pattern of searchPatterns) {
+            try {
+                const glob = require('glob');
+                const files = glob.sync(pattern.replace(/\\/g, '/'));
+                
+                for (const filePath of files) {
+                    if (fs.existsSync(filePath)) {
+                        try {
+                            const content = fs.readFileSync(filePath, 'utf8');
+                            if (viewComponentClassRegex.test(content)) {
+                                this.debugLog(`Found view component ${componentName} in file: ${filePath}`);
+                                return filePath;
+                            }
+                        } catch (error) {
+                            this.debugLog(`Error reading file ${filePath}: ${error}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                this.debugLog(`Glob search failed for pattern ${pattern}: ${error}`);
+            }
+        }
+
+        return null;
+    }
+
+    private convertKebabCaseToPascalCase(kebabCase: string): string {
+        return kebabCase
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join('');
+    }
+
+    private findViewComponentViewFile(uri: vscode.Uri, componentName: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        const workspaceRoot = workspaceFolder.uri.fsPath;
+        const projectRoots = this.findMvcProjectRootsFromView(workspaceRoot, uri.fsPath);
+
+        for (const projectRoot of projectRoots) {
+            // Try to determine the controller context if the view component is being called from a view
+            const controllerName = this.extractControllerNameFromViewPath(uri.fsPath);
+            
+            // ASP.NET Core view component view search paths (in order of precedence)
+            const possiblePaths = [];
+
+            // 1. /Views/{Controller Name}/Components/{View Component Name}/Default.cshtml
+            if (controllerName) {
+                possiblePaths.push(path.join(projectRoot, 'Views', controllerName, 'Components', componentName, 'Default.cshtml'));
+            }
+
+            // 2. /Views/Shared/Components/{View Component Name}/Default.cshtml
+            possiblePaths.push(path.join(projectRoot, 'Views', 'Shared', 'Components', componentName, 'Default.cshtml'));
+
+            // 3. /Pages/Shared/Components/{View Component Name}/Default.cshtml (for Razor Pages)
+            possiblePaths.push(path.join(projectRoot, 'Pages', 'Shared', 'Components', componentName, 'Default.cshtml'));
+
+            // 4. /Areas/{Area Name}/Views/Shared/Components/{View Component Name}/Default.cshtml
+            possiblePaths.push(path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', 'Components', componentName, 'Default.cshtml'));
+
+            // Additional common folder variations
+            possiblePaths.push(path.join(projectRoot, 'src', 'Views', 'Shared', 'Components', componentName, 'Default.cshtml'));
+            possiblePaths.push(path.join(projectRoot, 'Web', 'Views', 'Shared', 'Components', componentName, 'Default.cshtml'));
+
+            // Check each possible path
+            for (const filePath of possiblePaths) {
+                // Handle wildcard paths for Areas
+                if (filePath.includes('*')) {
+                    const globPattern = filePath.replace(/\\/g, '/');
+                    try {
+                        const glob = require('glob');
+                        const matches = glob.sync(globPattern);
+                        if (matches && matches.length > 0) {
+                            // Return the first match and verify it exists
+                            const firstMatch = matches[0];
+                            if (fs.existsSync(firstMatch)) {
+                                this.debugLog(`Found view component view: ${firstMatch}`);
+                                return firstMatch;
+                            }
+                        }
+                    } catch (error) {
+                        // Fallback if glob is not available
+                        this.debugLog(`Glob search failed for ${globPattern}: ${error}`);
+                    }
+                } else if (fs.existsSync(filePath)) {
+                    this.debugLog(`Found view component view: ${filePath}`);
+                    return filePath;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private findViewComponentViewFileByName(uri: vscode.Uri, componentName: string, viewName: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        const workspaceRoot = workspaceFolder.uri.fsPath;
+        const projectRoots = this.findMvcProjectRootsFromView(workspaceRoot, uri.fsPath);
+
+        for (const projectRoot of projectRoots) {
+            // Try to determine the controller context if the view component is being called from a view
+            const controllerName = this.extractControllerNameFromViewPath(uri.fsPath);
+            
+            // ASP.NET Core view component view search paths (in order of precedence)
+            const possiblePaths = [];
+
+            // 1. /Views/{Controller Name}/Components/{View Component Name}/{View Name}.cshtml
+            if (controllerName) {
+                possiblePaths.push(path.join(projectRoot, 'Views', controllerName, 'Components', componentName, `${viewName}.cshtml`));
+            }
+
+            // 2. /Views/Shared/Components/{View Component Name}/{View Name}.cshtml
+            possiblePaths.push(path.join(projectRoot, 'Views', 'Shared', 'Components', componentName, `${viewName}.cshtml`));
+
+            // 3. /Pages/Shared/Components/{View Component Name}/{View Name}.cshtml (for Razor Pages)
+            possiblePaths.push(path.join(projectRoot, 'Pages', 'Shared', 'Components', componentName, `${viewName}.cshtml`));
+
+            // 4. /Areas/{Area Name}/Views/Shared/Components/{View Component Name}/{View Name}.cshtml
+            possiblePaths.push(path.join(projectRoot, 'Areas', '*', 'Views', 'Shared', 'Components', componentName, `${viewName}.cshtml`));
+
+            // Additional common folder variations
+            possiblePaths.push(path.join(projectRoot, 'src', 'Views', 'Shared', 'Components', componentName, `${viewName}.cshtml`));
+            possiblePaths.push(path.join(projectRoot, 'Web', 'Views', 'Shared', 'Components', componentName, `${viewName}.cshtml`));
+
+            // Check each possible path
+            for (const filePath of possiblePaths) {
+                // Handle wildcard paths for Areas
+                if (filePath.includes('*')) {
+                    const globPattern = filePath.replace(/\\/g, '/');
+                    try {
+                        const glob = require('glob');
+                        const matches = glob.sync(globPattern);
+                        if (matches && matches.length > 0) {
+                            // Return the first match and verify it exists
+                            const firstMatch = matches[0];
+                            if (fs.existsSync(firstMatch)) {
+                                this.debugLog(`Found view component view: ${firstMatch}`);
+                                return firstMatch;
+                            }
+                        }
+                    } catch (error) {
+                        // Fallback if glob is not available
+                        this.debugLog(`Glob search failed for ${globPattern}: ${error}`);
+                    }
+                } else if (fs.existsSync(filePath)) {
+                    this.debugLog(`Found view component view: ${filePath}`);
+                    return filePath;
+                }
             }
         }
 
@@ -2087,6 +2570,93 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         return null;
     }
 
+    // Controller fallback search method - similar to view component search
+    private findInlineControllerClass(projectRoot: string, controllerName: string): { filePath: string; lineNumber: number } | null {
+        // Search for controller classes defined within other files or non-standard locations
+        const searchPatterns = [
+            path.join(projectRoot, 'Controllers', '*.cs'),
+            path.join(projectRoot, 'Areas', '*', 'Controllers', '*.cs'),
+            path.join(projectRoot, 'src', 'Controllers', '*.cs'),
+            path.join(projectRoot, 'Web', 'Controllers', '*.cs'),
+            path.join(projectRoot, '*.cs'), // Search in root as well
+            path.join(projectRoot, 'src', '*.cs'), // Search in src folder
+            path.join(projectRoot, 'Web', '*.cs'), // Search in Web folder
+        ];
+
+        // Match controller class declarations with any access modifier
+        const controllerClassRegex = new RegExp(`class\\s+${controllerName}Controller\\s*:\\s*(Controller|ControllerBase)\\b`);
+
+        for (const pattern of searchPatterns) {
+            try {
+                const glob = require('glob');
+                const files = glob.sync(pattern.replace(/\\/g, '/'));
+                
+                for (const filePath of files) {
+                    if (fs.existsSync(filePath)) {
+                        try {
+                            const content = fs.readFileSync(filePath, 'utf8');
+                            const lines = content.split('\n');
+                            
+                            for (let i = 0; i < lines.length; i++) {
+                                if (controllerClassRegex.test(lines[i])) {
+                                    this.debugLog(`Found controller ${controllerName} in file: ${filePath} at line ${i + 1}`);
+                                    return { filePath, lineNumber: i + 1 }; // 1-based line number
+                                }
+                            }
+                        } catch (error) {
+                            this.debugLog(`Error reading file ${filePath}: ${error}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                this.debugLog(`Glob search failed for pattern ${pattern}: ${error}`);
+            }
+        }
+
+        return null;
+    }
+
+    // Area-specific controller fallback search
+    private findInlineControllerClassInArea(projectRoot: string, controllerName: string, areaName: string): { filePath: string; lineNumber: number } | null {
+        // Search for controller classes within the specific area
+        const searchPatterns = [
+            path.join(projectRoot, 'Areas', areaName, 'Controllers', '*.cs'),
+            path.join(projectRoot, 'Areas', areaName, '*.cs'), // Search in area root as well
+        ];
+
+        // Match controller class declarations with any access modifier
+        const controllerClassRegex = new RegExp(`class\\s+${controllerName}Controller\\s*:\\s*(Controller|ControllerBase)\\b`);
+
+        for (const pattern of searchPatterns) {
+            try {
+                const glob = require('glob');
+                const files = glob.sync(pattern.replace(/\\/g, '/'));
+                
+                for (const filePath of files) {
+                    if (fs.existsSync(filePath)) {
+                        try {
+                            const content = fs.readFileSync(filePath, 'utf8');
+                            const lines = content.split('\n');
+                            
+                            for (let i = 0; i < lines.length; i++) {
+                                if (controllerClassRegex.test(lines[i])) {
+                                    this.debugLog(`Found area controller ${controllerName} in file: ${filePath} at line ${i + 1}`);
+                                    return { filePath, lineNumber: i + 1 }; // 1-based line number
+                                }
+                            }
+                        } catch (error) {
+                            this.debugLog(`Error reading file ${filePath}: ${error}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                this.debugLog(`Glob search failed for pattern ${pattern}: ${error}`);
+            }
+        }
+
+        return null;
+    }
+
     private findActionMethodInControllerWithHttpMethod(currentControllerUri: vscode.Uri, actionName: string, controllerName: string, httpMethod: string): { filePath: string; lineNumber?: number } | null {
         const targetControllerPath = this.findControllerFile(currentControllerUri, controllerName);
         if (!targetControllerPath) {
@@ -2171,9 +2741,16 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, currentControllerUri.fsPath);
         
         for (const projectRoot of projectRoots) {
-            const controllerPath = this.searchControllerInProject(projectRoot, controllerName);
-            if (controllerPath) {
-                return controllerPath;
+            // First, try to find a dedicated controller file
+            const dedicatedControllerPath = this.searchControllerInProject(projectRoot, controllerName);
+            if (dedicatedControllerPath) {
+                return dedicatedControllerPath;
+            }
+
+            // If not found, search for controller classes within other C# files
+            const inlineControllerResult = this.findInlineControllerClass(projectRoot, controllerName);
+            if (inlineControllerResult) {
+                return inlineControllerResult.filePath;
             }
         }
 
@@ -2249,9 +2826,16 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, currentControllerUri.fsPath);
         
         for (const projectRoot of projectRoots) {
+            // First, try the standard area controller path
             const areaControllerPath = path.join(projectRoot, 'Areas', areaName, 'Controllers', `${controllerName}Controller.cs`);
             if (fs.existsSync(areaControllerPath)) {
                 return areaControllerPath;
+            }
+
+            // If not found, search for controller classes within the area folder
+            const inlineAreaControllerResult = this.findInlineControllerClassInArea(projectRoot, controllerName, areaName);
+            if (inlineAreaControllerResult) {
+                return inlineAreaControllerResult.filePath;
             }
         }
 
@@ -2442,6 +3026,34 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             }
         } catch (error) {}
         return undefined;
+    }
+
+    // Helper method to get controller path and line number, trying both standard and fallback search
+    private findControllerWithLineInfo(currentControllerUri: vscode.Uri, controllerName: string): { filePath: string; lineNumber?: number } | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentControllerUri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        // Find potential MVC project roots
+        const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, currentControllerUri.fsPath);
+        
+        for (const projectRoot of projectRoots) {
+            // First, try to find a dedicated controller file
+            const dedicatedControllerPath = this.searchControllerInProject(projectRoot, controllerName);
+            if (dedicatedControllerPath) {
+                const classLine = this.findControllerClassLine(dedicatedControllerPath, controllerName);
+                return { filePath: dedicatedControllerPath, lineNumber: classLine };
+            }
+
+            // If not found, search for controller classes within other C# files
+            const inlineControllerResult = this.findInlineControllerClass(projectRoot, controllerName);
+            if (inlineControllerResult) {
+                return inlineControllerResult; // This already has both filePath and lineNumber
+            }
+        }
+
+        return null;
     }
 
     private processAnchorTagHelpers(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {

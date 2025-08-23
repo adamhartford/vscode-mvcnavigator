@@ -1,8 +1,8 @@
 {
   "name": "vscode-mvcnavigator",
   "displayName": "ASP.NET MVC Navigator",
-  "description": "Navigate between controllers, views, and actions in ASP.NET MVC projects.",
-  "version": "0.0.3",
+  "description": "Navigate between controllers, views, actions, and view components in ASP.NET MVC projects with intelligent fallback search.",
+  "version": "0.0.4",
   "publisher": "adamhartford",
   "author": "Adam Hartford",
   "icon": "icon.png",

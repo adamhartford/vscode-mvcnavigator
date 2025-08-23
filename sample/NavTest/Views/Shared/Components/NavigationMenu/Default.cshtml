@@ -1,0 +1,14 @@
+<div class="navigation-menu">
+    <h4>Navigation Menu</h4>
+    <ul>
+        <li class="@(ViewBag.CurrentPage == "Home" ? "active" : "")">
+            <a href="/">Home</a>
+        </li>
+        <li class="@(ViewBag.CurrentPage == "Music" ? "active" : "")">
+            <a href="/Music">Music</a>
+        </li>
+        <li class="@(ViewBag.CurrentPage == "Privacy" ? "active" : "")">
+            <a href="/Privacy">Privacy</a>
+        </li>
+    </ul>
+</div>

@@ -24,6 +24,7 @@ Ctrl+click to navigate from views to controllers and actions:
 - `@Url.Action("Delete", "Product", new { area = "Admin" })` → jumps to actions in Areas
 - `@Html.Partial("_UserCard")` → jumps to partial views
 - `@await Html.PartialAsync("_ProductList")` → jumps to partial views
+- `@await Component.InvokeAsync("Navigation", new { showCart = true })` → jumps to `NavigationViewComponent`
 
 ### 🏷️ **Tag Helper Support**
 Full support for ASP.NET Core tag helpers:
@@ -33,6 +34,7 @@ Full support for ASP.NET Core tag helpers:
 - `<form asp-action="Search" method="get">` → jumps to GET actions (HTTP method aware)
 - `<partial name="_Navigation" />` → jumps to partial views
 - `<partial name="~/Views/Shared/_Header.cshtml" />` → jumps to full path partial views
+- `<vc:product-list />` → jumps to view components
 
 ### 🔧 **HTML Helper Support**
 Classic ASP.NET MVC HTML helpers:
@@ -48,6 +50,8 @@ Classic ASP.NET MVC HTML helpers:
 - **Multi-Project Workspaces**: Works across multiple ASP.NET projects in a single workspace
 - **Smart Path Resolution**: Handles relative paths, full virtual paths (`~/`), and Area-specific routing
 - **Parameterized Actions**: Navigate to actions with route parameters and anonymous objects
+- **Fallback Search**: Automatically finds controllers and view components in shared files or non-standard locations
+- **Precise Line Positioning**: Jump directly to the exact line of controller classes and view component definitions
 
 ## Supported Patterns
 
@@ -59,9 +63,11 @@ Classic ASP.NET MVC HTML helpers:
 ### Views (Razor)
 - `@Html.ActionLink()`, `@Html.BeginForm()`, `@Url.Action()`
 - `@Html.Partial()`, `@await Html.PartialAsync()` 
+- `@await Component.InvokeAsync()` for view components
 - `<a asp-action="" asp-controller="" asp-area="">` tag helpers
 - `<form asp-action="" asp-controller="" asp-area="">` tag helpers
 - `<partial name="" />` tag helpers with regular names and full paths
+- `<vc:component-name />` view component tag helpers
 
 ## Compatibility
 

@@ -1,0 +1,41 @@
+@{
+    ViewData["Title"] = "Controller Navigation Test";
+}
+
+<h2>Controller Navigation Test</h2>
+
+<p>Test navigation to different controllers using RedirectToAction calls:</p>
+
+<ul>
+    <li>
+        <strong>Standard controller:</strong> 
+        @Html.ActionLink("Go to Home", "Index", "Home") 
+        <!-- This should navigate to Controllers/HomeController.cs -->
+    </li>
+    
+    <li>
+        <strong>Controller in shared file:</strong> 
+        @Html.ActionLink("Go to Test", "SampleAction", "Test")
+        <!-- This should navigate to Controllers/MixedControllers.cs and find TestController -->
+    </li>
+    
+    <li>
+        <strong>Another controller in shared file:</strong> 
+        @Html.ActionLink("Go to Custom", "CustomAction", "Custom")
+        <!-- This should navigate to Controllers/MixedControllers.cs and find CustomController -->
+    </li>
+    
+    <li>
+        <strong>Shared controller:</strong> 
+        @Html.ActionLink("Go to Shared", "Index", "Shared")
+        <!-- This should navigate to Controllers/MixedControllers.cs and find SharedController -->
+    </li>
+</ul>
+
+<h3>Using RedirectToAction for testing:</h3>
+<p>In controller actions, you can now use:</p>
+<ul>
+    <li><code>return RedirectToAction("SampleAction", "Test");</code> - Should navigate to TestController</li>
+    <li><code>return RedirectToAction("CustomAction", "Custom");</code> - Should navigate to CustomController</li>
+    <li><code>return RedirectToAction("Index", "Shared");</code> - Should navigate to SharedController</li>
+</ul>

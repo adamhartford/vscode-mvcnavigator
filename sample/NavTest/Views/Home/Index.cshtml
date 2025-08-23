@@ -3,6 +3,15 @@
     var obj = new { Foo = "Bar" };
 }
 
+@* View Component Examples *@
+@await Component.InvokeAsync("NavigationMenu", new { currentPage = "Home" })
+
+@await Component.InvokeAsync("NavigationMenu")
+
+<vc:navigation-menu current-page="Home"></vc:navigation-menu>
+
+@await Component.InvokeAsync("Home")
+
 <div class="text-center">
     <h1 class="display-4">Welcome</h1>
     <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
@@ -58,3 +67,5 @@
 <partial name="~/Views/Shared/_Navigation.cshtml" />
 
 <partial name="~/Views/Shared/_Navigation.cshtml" model="obj"/>
+
+<a asp-action="CustomAction" asp-controller="Custom">Custom Action</a>
