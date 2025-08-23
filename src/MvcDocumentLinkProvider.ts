@@ -53,7 +53,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         
         // Process C# files for controller-based navigation
         if (document.languageId === 'csharp') {
-            this.processCSharptNavigations(document, links);
+            this.processCSharpNavigations(document, links);
         }
         
         // Process Razor/HTML files for @Url.Action navigation
@@ -82,7 +82,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         return links;
     }
 
-    private processCSharptNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
+    private processCSharpNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
         const text = document.getText();
         
         // Handle View("ViewName") calls
