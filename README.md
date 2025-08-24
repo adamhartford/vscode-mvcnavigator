@@ -39,9 +39,9 @@ Simply Ctrl+click (or Cmd+click on Mac) on any MVC controller, action, or view n
 
 ## Compatibility
 
-- ASP.NET MVC (.NET Framework)
 - ASP.NET Core MVC (.NET Core/.NET 5+)
 - Razor Pages projects
+- ASP.NET MVC (.NET Framework)
 - Areas and multi-project solutions
 
 ## Configuration
