@@ -19,36 +19,47 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         }
     }
     
-    // Helper method to create action command URIs with proper parameter handling
+    // Helper method to create action command URIs with embedded navigation info
     private createActionCommandUri(filePath: string, lineNumber?: number): vscode.Uri {
-        const linkId = `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.pendingNavigations.set(linkId, { 
-            type: 'action', 
-            path: filePath, 
-            lineNumber: lineNumber 
-        });
-        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([linkId]))}`);
+        // Instead of using temporary linkIds, encode the navigation info directly in the URI
+        const navInfo = {
+            type: 'direct',
+            path: filePath,
+            lineNumber: lineNumber
+        };
+        
+        // Base64 encode the navigation info to make it URL-safe
+        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
+        const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
+        this.debugLog(`Created action command URI with embedded info: ${commandUri.toString()}`);
+        return commandUri;
     }
     
-    // Helper method to create controller command URIs with proper parameter handling
+    // Helper method to create controller command URIs with embedded navigation info
     private createControllerCommandUri(filePath: string): vscode.Uri {
-        const linkId = `controller_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.pendingNavigations.set(linkId, { 
-            type: 'controller', 
-            path: filePath 
-        });
-        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([linkId]))}`);
+        // Instead of using temporary linkIds, encode the navigation info directly in the URI
+        const navInfo = {
+            type: 'direct',
+            path: filePath
+        };
+        
+        // Base64 encode the navigation info to make it URL-safe
+        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
+        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
     }
 
-    // Helper method to create view component command URIs with proper parameter handling
+    // Helper method to create view component command URIs with embedded navigation info
     private createViewComponentCommandUri(filePath: string, componentName?: string): vscode.Uri {
-        const linkId = `viewcomponent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.pendingNavigations.set(linkId, { 
-            type: 'viewcomponent', 
+        // Instead of using temporary linkIds, encode the navigation info directly in the URI
+        const navInfo = {
+            type: 'direct',
             path: filePath,
             componentName: componentName
-        });
-        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToViewComponent?${encodeURIComponent(JSON.stringify([linkId]))}`);
+        };
+        
+        // Base64 encode the navigation info to make it URL-safe
+        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
+        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToViewComponent?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
     }
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
@@ -652,7 +663,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                     links.push(controllerLink);
                 } else {
                     // Create command URI for controller navigation
-                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerInfo.filePath]))}`);
+                    const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
                     const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
                     controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
                     links.push(controllerLink);
@@ -688,13 +699,20 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             const controllerEndPos = document.positionAt(match.index + match[0].lastIndexOf(match[2]) + match[2].length + 1);
             const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
             
-            const controllerPath = this.findControllerFile(document.uri, controllerName);
-            if (controllerPath) {
-                // Create command URI for controller navigation
-                const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
-                const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
-                controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
-                links.push(controllerLink);
+            const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
+            if (controllerInfo) {
+                if (controllerInfo.lineNumber) {
+                    const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
+                    links.push(controllerLink);
+                } else {
+                    // Create command URI for controller navigation
+                    const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
+                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                    links.push(controllerLink);
+                }
             }
         }
     }
@@ -911,7 +929,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                         links.push(controllerLink);
                     } else {
                         // Create command URI for controller navigation
-                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerInfo.filePath]))}`);
+                        const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
                         const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
                         links.push(controllerLink);
@@ -966,7 +984,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                         links.push(controllerLink);
                     } else {
                         // Create command URI for controller navigation
-                        const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerInfo.filePath]))}`);
+                        const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
                         const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
                         controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
                         links.push(controllerLink);
@@ -1245,14 +1263,21 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
                 
                 const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
-                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
                 
-                if (controllerPath) {
-                    // Create command URI for controller navigation
-                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
-                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
-                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
-                    links.push(controllerLink);
+                if (controllerInfo) {
+                    if (controllerInfo.lineNumber) {
+                        const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
+                        links.push(controllerLink);
+                    } else {
+                        // Create command URI for controller navigation
+                        const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                        links.push(controllerLink);
+                    }
                 }
             }
         }
@@ -1301,14 +1326,21 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
                 
                 const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
-                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
                 
-                if (controllerPath) {
-                    // Create command URI for controller navigation
-                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
-                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
-                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
-                    links.push(controllerLink);
+                if (controllerInfo) {
+                    if (controllerInfo.lineNumber) {
+                        const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
+                        links.push(controllerLink);
+                    } else {
+                        // Create command URI for controller navigation
+                        const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                        links.push(controllerLink);
+                    }
                 }
             }
         }
@@ -1440,14 +1472,21 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
                 
                 const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
-                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
                 
-                if (controllerPath) {
-                    // Create command URI for controller navigation
-                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
-                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
-                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
-                    links.push(controllerLink);
+                if (controllerInfo) {
+                    if (controllerInfo.lineNumber) {
+                        const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
+                        links.push(controllerLink);
+                    } else {
+                        // Create command URI for controller navigation
+                        const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                        links.push(controllerLink);
+                    }
                 }
             }
         }
@@ -1502,14 +1541,21 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
                 
                 const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
-                const controllerPath = this.findControllerFile(document.uri, controllerName);
+                const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
                 
-                if (controllerPath) {
-                    // Create command URI for controller navigation
-                    const controllerCommandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([controllerPath]))}`);
-                    const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
-                    controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
-                    links.push(controllerLink);
+                if (controllerInfo) {
+                    if (controllerInfo.lineNumber) {
+                        const commandUri = this.createActionCommandUri(controllerInfo.filePath, controllerInfo.lineNumber);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, commandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller (class definition)`;
+                        links.push(controllerLink);
+                    } else {
+                        // Create command URI for controller navigation
+                        const controllerCommandUri = this.createControllerCommandUri(controllerInfo.filePath);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                        links.push(controllerLink);
+                    }
                 }
             }
         }

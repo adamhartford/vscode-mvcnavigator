@@ -23,6 +23,16 @@ public class HomeController : Controller
         return View("Index");
     }
 
+    public IActionResult Index3()
+    {
+        return View(viewName: "Index");
+    }
+
+    public IActionResult Index4()
+    {
+        return RedirectToAction("Index");
+    }
+
     [HttpPost, ValidateAntiForgeryToken]
     public IActionResult Index(IFormCollection formCollection)
     {
