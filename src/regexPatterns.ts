@@ -59,12 +59,16 @@ export const HTML_PARTIAL_WITH_NAME_REGEX = /@?Html\.Partial\s*\(\s*["']([^"']+)
 export const HTML_PARTIAL_WITH_NAME_AND_MODEL_REGEX = /@?Html\.Partial\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
 export const HTML_PARTIAL_WITH_FULL_PATH_REGEX = /@?Html\.Partial\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
 export const HTML_PARTIAL_WITH_FULL_PATH_AND_MODEL_REGEX = /@?Html\.Partial\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
+export const HTML_PARTIAL_WITH_ABSOLUTE_PATH_REGEX = /@?Html\.Partial\s*\(\s*["'](\/[^"']+\.cshtml?)["']\s*\)/g;
+export const HTML_PARTIAL_WITH_ABSOLUTE_PATH_AND_MODEL_REGEX = /@?Html\.Partial\s*\(\s*["'](\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
 
 // Regular expressions to match @await Html.PartialAsync() calls in Razor views
 export const HTML_PARTIAL_ASYNC_WITH_NAME_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["']([^"']+)["']\s*\)(?!\s*,)/g;
 export const HTML_PARTIAL_ASYNC_WITH_NAME_AND_MODEL_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
 export const HTML_PARTIAL_ASYNC_WITH_FULL_PATH_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
 export const HTML_PARTIAL_ASYNC_WITH_FULL_PATH_AND_MODEL_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
+export const HTML_PARTIAL_ASYNC_WITH_ABSOLUTE_PATH_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](\/[^"']+\.cshtml?)["']\s*\)/g;
+export const HTML_PARTIAL_ASYNC_WITH_ABSOLUTE_PATH_AND_MODEL_REGEX = /@?await\s+Html\.PartialAsync\s*\(\s*["'](\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
 
 // Regular expressions to match ASP.NET Core Tag Helpers
 export const ANCHOR_TAG_HELPER_ACTION_REGEX = /<a[^>]*asp-action\s*=\s*["']([^"']+)["'][^>]*>/g;
@@ -78,6 +82,7 @@ export const FORM_TAG_HELPER_AREA_REGEX = /<form[^>]*asp-area\s*=\s*["']([^"']*)
 // Regular expressions to match Partial Tag Helper
 export const PARTIAL_TAG_HELPER_NAME_REGEX = /<partial[^>]*name\s*=\s*["']([^"']+)["'][^>]*>/g;
 export const PARTIAL_TAG_HELPER_FULL_PATH_REGEX = /<partial[^>]*name\s*=\s*["'](~\/[^"']+\.cshtml?)["'][^>]*>/g;
+export const PARTIAL_TAG_HELPER_ABSOLUTE_PATH_REGEX = /<partial[^>]*name\s*=\s*["'](\/[^"']+\.cshtml?)["'][^>]*>/g;
 
 // Regex to extract HTTP method from form elements
 export const FORM_METHOD_REGEX = /\bmethod\s*=\s*["']([^"']+)["']/i;

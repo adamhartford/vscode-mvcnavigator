@@ -1,0 +1,39 @@
+@model dynamic
+
+@{
+    ViewData["Title"] = "Full Path Navigation Test";
+}
+
+<h2>Testing Full Path Navigation</h2>
+
+<div>
+    <h3>Tilde Path Tests</h3>
+    
+    <!-- HTML Partial helpers with tilde paths -->
+    @Html.Partial("~/Views/Shared/_Layout.cshtml")
+    @Html.Partial("~/Views/Shared/_Navigation.cshtml", Model)
+    
+    <!-- Async partial helpers with tilde paths -->
+    @await Html.PartialAsync("~/Views/Home/Index.cshtml")
+    @await Html.PartialAsync("~/Views/Shared/_GlobalPartial.cshtml", Model)
+    
+    <!-- Partial tag helpers with tilde paths -->
+    <partial name="~/Views/Shared/_Layout.cshtml" />
+    <partial name="~/Views/Shared/_Navigation.cshtml" model="Model" />
+</div>
+
+<div>
+    <h3>Absolute Path Tests</h3>
+    
+    <!-- HTML Partial helpers with absolute paths -->
+    @Html.Partial("/Areas/Admin/Views/Shared/_AdminLayout.cshtml")
+    @Html.Partial("/Areas/Something/Views/Shared/_MyPartial.cshtml", Model)
+    
+    <!-- Async partial helpers with absolute paths -->
+    @await Html.PartialAsync("/Areas/Admin/Views/Shared/_AdminNav.cshtml")
+    @await Html.PartialAsync("/Areas/Something/Views/Shared/_MyPartial.cshtml", Model)
+    
+    <!-- Partial tag helpers with absolute paths -->
+    <partial name="/Areas/Admin/Views/Shared/_AdminLayout.cshtml" />
+    <partial name="/Areas/Something/Views/Shared/_MyPartial.cshtml" model="Model" />
+</div>

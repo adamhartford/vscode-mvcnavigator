@@ -135,6 +135,12 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         // Handle View() and PartialView() calls with full paths and parameters
         this.processViewCallsWithFullPathAndParams(document, text, links);
 
+        // Handle View() and PartialView() calls with absolute paths
+        this.processViewCallsWithAbsolutePath(document, text, links);
+        
+        // Handle View() and PartialView() calls with absolute paths and parameters
+        this.processViewCallsWithAbsolutePathAndParams(document, text, links);
+
         // Handle RedirectToAction with area in route values (FIRST - most specific)
         this.processRedirectToActionWithArea(document, text, links);
         this.processRedirectToActionWithAreaTwoParam(document, text, links);
@@ -203,6 +209,12 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         // Handle @Html.Partial("~/path/to/partial.cshtml") calls
         this.processHtmlPartialWithFullPath(document, text, links);
         
+        // Handle @Html.Partial with absolute paths
+        this.processHtmlPartialWithAbsolutePathAndModel(document, text, links);
+        
+        // Handle @Html.Partial("/path/to/partial.cshtml") calls
+        this.processHtmlPartialWithAbsolutePath(document, text, links);
+        
         // Handle @Html.Partial("PartialName", model) calls (process specific patterns first)
         this.processHtmlPartialWithNameAndModel(document, text, links);
 
@@ -214,6 +226,12 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         
         // Handle @await Html.PartialAsync("~/path/to/partial.cshtml") calls
         this.processHtmlPartialAsyncWithFullPath(document, text, links);
+
+        // Handle @await Html.PartialAsync with absolute paths
+        this.processHtmlPartialAsyncWithAbsolutePathAndModel(document, text, links);
+        
+        // Handle @await Html.PartialAsync("/path/to/partial.cshtml") calls
+        this.processHtmlPartialAsyncWithAbsolutePath(document, text, links);
 
         // Handle @await Html.PartialAsync("PartialName", model) calls (process specific patterns first)
         this.processHtmlPartialAsyncWithNameAndModel(document, text, links);
@@ -487,6 +505,66 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 if (resolvedPath) {
                     const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
                     link.tooltip = `Navigate to ${path.basename(fullPath)} (${viewType} with full path and parameters)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processViewCallsWithAbsolutePath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.VIEW_CALL_WITH_ABSOLUTE_PATH_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.VIEW_CALL_WITH_ABSOLUTE_PATH_REGEX.exec(text)) !== null) {
+            const viewType = match[1]; // "View" or "PartialView"
+            const absolutePath = match[2]; // The absolute path like "/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${absolutePath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(absolutePath)} (${viewType} with absolute path)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processViewCallsWithAbsolutePathAndParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.VIEW_CALL_WITH_ABSOLUTE_PATH_AND_PARAMS_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.VIEW_CALL_WITH_ABSOLUTE_PATH_AND_PARAMS_REGEX.exec(text)) !== null) {
+            const viewType = match[1]; // "View" or "PartialView"
+            const absolutePath = match[2]; // The absolute path like "/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${absolutePath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(absolutePath)} (${viewType} with absolute path and parameters)`;
                     links.push(link);
                 }
             }
@@ -1708,6 +1786,123 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 if (resolvedPath) {
                     const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
                     link.tooltip = `Navigate to ${path.basename(fullPath)} (Html.PartialAsync with full path and model)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // HTML Partial methods with absolute paths
+    private processHtmlPartialWithAbsolutePath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.HTML_PARTIAL_WITH_ABSOLUTE_PATH_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.HTML_PARTIAL_WITH_ABSOLUTE_PATH_REGEX.exec(text)) !== null) {
+            const absolutePath = match[1]; // The absolute path like "/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${absolutePath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(absolutePath)} (Html.Partial with absolute path)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlPartialWithAbsolutePathAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.HTML_PARTIAL_WITH_ABSOLUTE_PATH_AND_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.HTML_PARTIAL_WITH_ABSOLUTE_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
+            const absolutePath = match[1]; // The absolute path like "/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${absolutePath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(absolutePath)} (Html.Partial with absolute path and model)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlPartialAsyncWithAbsolutePath(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.HTML_PARTIAL_ASYNC_WITH_ABSOLUTE_PATH_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.HTML_PARTIAL_ASYNC_WITH_ABSOLUTE_PATH_REGEX.exec(text)) !== null) {
+            const absolutePath = match[1]; // The absolute path like "/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${absolutePath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(absolutePath)} (Html.PartialAsync with absolute path)`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    private processHtmlPartialAsyncWithAbsolutePathAndModel(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.HTML_PARTIAL_ASYNC_WITH_ABSOLUTE_PATH_AND_MODEL_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.HTML_PARTIAL_ASYNC_WITH_ABSOLUTE_PATH_AND_MODEL_REGEX.exec(text)) !== null) {
+            const absolutePath = match[1]; // The absolute path like "/Areas/MyArea/Views/MyController/_MyPartial.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${absolutePath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const resolvedPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (resolvedPath) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(absolutePath)} (Html.PartialAsync with absolute path and model)`;
                     links.push(link);
                 }
             }
@@ -3406,14 +3601,46 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             }
         }
         
+        // Process absolute path partial tag helpers (paths starting with /)
+        RegexPatterns.PARTIAL_TAG_HELPER_ABSOLUTE_PATH_REGEX.lastIndex = 0;
+        
+        while ((match = RegexPatterns.PARTIAL_TAG_HELPER_ABSOLUTE_PATH_REGEX.exec(text)) !== null) {
+            const absolutePath = match[1]; // The absolute path like "/Areas/Admin/Views/Shared/_Navigation.cshtml"
+            
+            // Find the exact position of the quoted path
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const pathWithQuotes = `${quoteChar}${absolutePath}${quoteChar}`;
+            const pathStartInMatch = fullMatch.indexOf(pathWithQuotes);
+            
+            if (pathStartInMatch !== -1) {
+                const startPos = document.positionAt(match.index + pathStartInMatch);
+                const endPos = document.positionAt(match.index + pathStartInMatch + pathWithQuotes.length);
+                const range = new vscode.Range(startPos, endPos);
+                
+                this.debugLog(`Found partial tag helper with absolute path: "${absolutePath}" at line ${startPos.line + 1}`);
+                
+                const resolvedPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (resolvedPath) {
+                    this.debugLog(`Resolved absolute path to: ${resolvedPath}`);
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(resolvedPath));
+                    link.tooltip = `Navigate to ${path.basename(absolutePath)} (partial tag helper with absolute path)`;
+                    links.push(link);
+                } else {
+                    this.debugLog(`Could not resolve absolute path: ${absolutePath}`);
+                }
+            }
+        }
+        
         // Then, process regular partial tag helpers (less specific pattern, to avoid conflicts)
         RegexPatterns.PARTIAL_TAG_HELPER_NAME_REGEX.lastIndex = 0;
         
         while ((match = RegexPatterns.PARTIAL_TAG_HELPER_NAME_REGEX.exec(text)) !== null) {
             const partialViewName = match[1];
             
-            // Skip if this looks like a full path (starts with ~/) - already handled above
-            if (partialViewName.startsWith('~/')) {
+            // Skip if this looks like a full path (starts with ~/ or /) - already handled above
+            if (partialViewName.startsWith('~/') || partialViewName.startsWith('/')) {
                 continue;
             }
             

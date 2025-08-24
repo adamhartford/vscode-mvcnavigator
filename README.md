@@ -11,8 +11,11 @@ A Visual Studio Code extension that provides intelligent navigation between ASP.
 ### 🎯 **Controller Navigation**
 Ctrl+click to navigate from controllers to views and actions:
 - `View("About")` → jumps to `About.cshtml` 
-- `View("~/Views/Shared/_Layout.cshtml")` → jumps to full path views
+- `View("~/Views/Shared/_Layout.cshtml")` → jumps to tilde path views
+- `View("/Areas/Admin/Views/Shared/_Layout.cshtml")` → jumps to absolute path views
 - `PartialView("_UserInfo")` → jumps to partial views
+- `PartialView("~/Views/Shared/_Navigation.cshtml")` → jumps to tilde path partials
+- `PartialView("/Areas/Admin/Views/Shared/_Nav.cshtml")` → jumps to absolute path partials
 - `RedirectToAction("Login", "Account")` → jumps to `AccountController.Login()`
 - `RedirectToAction("Index", "Product", new { area = "Admin" })` → jumps to actions in Areas
 - `ViewComponent("NavigationMenu")` → jumps to `NavigationMenuViewComponent`
@@ -25,7 +28,11 @@ Ctrl+click to navigate from views to controllers and actions:
 - `@Html.BeginForm("Create", "Product", FormMethod.Post)` → jumps to `ProductController.Create()` POST action
 - `@Url.Action("Delete", "Product", new { area = "Admin" })` → jumps to actions in Areas
 - `@Html.Partial("_UserCard")` → jumps to partial views
+- `@Html.Partial("~/Views/Shared/_Navigation.cshtml")` → jumps to tilde path partials
+- `@Html.Partial("/Areas/Admin/Views/Shared/_Nav.cshtml")` → jumps to absolute path partials
 - `@await Html.PartialAsync("_ProductList")` → jumps to partial views
+- `@await Html.PartialAsync("~/Views/Shared/_Global.cshtml")` → jumps to tilde path partials
+- `@await Html.PartialAsync("/Areas/Admin/Views/Shared/_Admin.cshtml")` → jumps to absolute path partials
 - `@await Component.InvokeAsync("Navigation", new { showCart = true })` → jumps to `NavigationViewComponent`
 
 ### 🏷️ **Tag Helper Support**
@@ -35,8 +42,10 @@ Full support for ASP.NET Core tag helpers:
 - `<form asp-action="Create" asp-controller="Product" method="post">` → jumps to POST actions
 - `<form asp-action="Search" method="get">` → jumps to GET actions (HTTP method aware)
 - `<partial name="_Navigation" />` → jumps to partial views
-- `<partial name="~/Views/Shared/_Header.cshtml" />` → jumps to full path partial views
-- `<vc:product-list />` → jumps to view components
+- `<partial name="~/Views/Shared/_Header.cshtml" />` → jumps to tilde path partial views
+- `<partial name="/Areas/Admin/Views/Shared/_Header.cshtml" />` → jumps to absolute path partial views
+- `<vc:product-list />` → jumps to view components using tag helper syntax
+- `<vc:navigation show-cart="true" />` → jumps to view components with parameters
 
 ### 🔧 **HTML Helper Support**
 Classic ASP.NET MVC HTML helpers:
