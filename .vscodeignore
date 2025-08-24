@@ -14,5 +14,8 @@ vsc-extension-quickstart.md
 regex-test.js
 test-*.js
 
+# Sample project (keep in repo but exclude from package)
+sample/**
+
 # Generated package
 *.vsix
