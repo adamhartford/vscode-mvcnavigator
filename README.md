@@ -15,6 +15,8 @@ Ctrl+click to navigate from controllers to views and actions:
 - `PartialView("_UserInfo")` → jumps to partial views
 - `RedirectToAction("Login", "Account")` → jumps to `AccountController.Login()`
 - `RedirectToAction("Index", "Product", new { area = "Admin" })` → jumps to actions in Areas
+- `ViewComponent("NavigationMenu")` → jumps to `NavigationMenuViewComponent`
+- `ViewComponent("ProductList", model)` → jumps to view components with parameters
 
 ### 🌐 **View Navigation**  
 Ctrl+click to navigate from views to controllers and actions:
@@ -59,6 +61,8 @@ Classic ASP.NET MVC HTML helpers:
 - `View()`, `View("ViewName")`, `View("~/Path/To/View.cshtml")`
 - `PartialView()`, `PartialView("PartialName")`
 - `RedirectToAction()` with action, controller, and area parameters
+- `ViewComponent("ComponentName")` → jumps to view component classes
+- `ViewComponent("ComponentName", parameters)` → jumps to view components with parameters
 
 ### Views (Razor)
 - `@Html.ActionLink()`, `@Html.BeginForm()`, `@Url.Action()`
@@ -68,6 +72,13 @@ Classic ASP.NET MVC HTML helpers:
 - `<form asp-action="" asp-controller="" asp-area="">` tag helpers
 - `<partial name="" />` tag helpers with regular names and full paths
 - `<vc:component-name />` view component tag helpers
+
+### View Components (C#)
+- `View()` → navigates to Default.cshtml view
+- `View("CustomView")` → navigates to CustomView.cshtml view
+- `View("~/Views/Shared/_Global.cshtml")` → navigates to full path views (tilde paths)
+- `View("/Areas/Admin/Views/Shared/_Partial.cshtml")` → navigates to absolute path views
+- Supports view components in any file location with fallback search
 
 ## Compatibility
 

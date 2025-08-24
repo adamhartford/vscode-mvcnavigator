@@ -99,6 +99,12 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         // Handle View Component View() calls FIRST (before regular view processing)
         this.processViewComponentViewCalls(document, text, links);
 
+        // Handle ViewComponent("ComponentName") calls in controllers
+        this.processViewComponentCalls(document, text, links);
+        
+        // Handle ViewComponent("ComponentName", parameters) calls in controllers
+        this.processViewComponentCallsWithParams(document, text, links);
+
         // Handle View("ViewName") calls
         this.processViewCallsWithName(document, text, links);
         
@@ -1795,6 +1801,62 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         }
     }
 
+    // Process ViewComponent("ComponentName") calls in controllers
+    private processViewComponentCalls(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.VIEW_COMPONENT_CALL_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.VIEW_COMPONENT_CALL_REGEX.exec(text)) !== null) {
+            const componentName = match[1]; // e.g., "NavigationMenu"
+            
+            // Find the exact position of the component name in quotes
+            const fullMatch = match[0];
+            const quoteIndex = fullMatch.indexOf('"' + componentName) !== -1 ? fullMatch.indexOf('"' + componentName) : fullMatch.indexOf("'" + componentName);
+            
+            if (quoteIndex !== -1) {
+                const startPos = document.positionAt(match.index + quoteIndex + 1); // After quote
+                const endPos = document.positionAt(match.index + quoteIndex + 1 + componentName.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const componentPath = this.findViewComponentFile(document.uri, componentName);
+                
+                if (componentPath) {
+                    const link = new vscode.DocumentLink(range, this.createViewComponentCommandUri(componentPath, componentName));
+                    link.tooltip = `Navigate to ${componentName}ViewComponent`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
+    // Process ViewComponent("ComponentName", parameters) calls in controllers
+    private processViewComponentCallsWithParams(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.VIEW_COMPONENT_CALL_WITH_PARAMS_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.VIEW_COMPONENT_CALL_WITH_PARAMS_REGEX.exec(text)) !== null) {
+            const componentName = match[1]; // e.g., "NavigationMenu"
+            
+            // Find the exact position of the component name in quotes
+            const fullMatch = match[0];
+            const quoteIndex = fullMatch.indexOf('"' + componentName) !== -1 ? fullMatch.indexOf('"' + componentName) : fullMatch.indexOf("'" + componentName);
+            
+            if (quoteIndex !== -1) {
+                const startPos = document.positionAt(match.index + quoteIndex + 1); // After quote
+                const endPos = document.positionAt(match.index + quoteIndex + 1 + componentName.length);
+                
+                const range = new vscode.Range(startPos, endPos);
+                const componentPath = this.findViewComponentFile(document.uri, componentName);
+                
+                if (componentPath) {
+                    const link = new vscode.DocumentLink(range, this.createViewComponentCommandUri(componentPath, componentName));
+                    link.tooltip = `Navigate to ${componentName}ViewComponent`;
+                    links.push(link);
+                }
+            }
+        }
+    }
+
     // Process View() calls within view components
     private processViewComponentViewCalls(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
         // Look for View() calls within view component classes
@@ -1854,6 +1916,54 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
                 if (viewPath) {
                     const link = new vscode.DocumentLink(range, vscode.Uri.file(viewPath));
                     link.tooltip = `Navigate to ${componentName} view component view (${viewName}.cshtml)`;
+                    links.push(link);
+                }
+            }
+            
+            // Find View() calls with full paths (~/path/to/view.cshtml)
+            const viewCallWithFullPathRegex = /\breturn\s+View\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*(?:,\s*[^)]+)?\)/g;
+            let viewCallWithFullPathMatch;
+            
+            while ((viewCallWithFullPathMatch = viewCallWithFullPathRegex.exec(classContent)) !== null) {
+                const fullPath = viewCallWithFullPathMatch[1];
+                const absoluteIndex = classStartIndex + viewCallWithFullPathMatch.index;
+                const viewCallStart = absoluteIndex + viewCallWithFullPathMatch[0].indexOf('"' + fullPath) || absoluteIndex + viewCallWithFullPathMatch[0].indexOf("'" + fullPath);
+                const viewCallEnd = viewCallStart + fullPath.length + 2; // Include quotes
+                
+                const startPos = document.positionAt(viewCallStart);
+                const endPos = document.positionAt(viewCallEnd);
+                const range = new vscode.Range(startPos, endPos);
+                
+                // Convert tilde path to actual file path
+                const actualPath = this.resolveFullViewPath(document.uri, fullPath);
+                
+                if (actualPath && fs.existsSync(actualPath)) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(actualPath));
+                    link.tooltip = `Navigate to view (${fullPath})`;
+                    links.push(link);
+                }
+            }
+            
+            // Find View() calls with absolute paths (/Areas/Something/Views/...)
+            const viewCallWithAbsolutePathRegex = /\breturn\s+View\s*\(\s*["'](\/[^"']+\.cshtml?)["']\s*(?:,\s*[^)]+)?\)/g;
+            let viewCallWithAbsolutePathMatch;
+            
+            while ((viewCallWithAbsolutePathMatch = viewCallWithAbsolutePathRegex.exec(classContent)) !== null) {
+                const absolutePath = viewCallWithAbsolutePathMatch[1];
+                const absoluteIndex = classStartIndex + viewCallWithAbsolutePathMatch.index;
+                const viewCallStart = absoluteIndex + viewCallWithAbsolutePathMatch[0].indexOf('"' + absolutePath) || absoluteIndex + viewCallWithAbsolutePathMatch[0].indexOf("'" + absolutePath);
+                const viewCallEnd = viewCallStart + absolutePath.length + 2; // Include quotes
+                
+                const startPos = document.positionAt(viewCallStart);
+                const endPos = document.positionAt(viewCallEnd);
+                const range = new vscode.Range(startPos, endPos);
+                
+                // Convert absolute path to actual file path
+                const actualPath = this.resolveAbsoluteViewPath(document.uri, absolutePath);
+                
+                if (actualPath && fs.existsSync(actualPath)) {
+                    const link = new vscode.DocumentLink(range, vscode.Uri.file(actualPath));
+                    link.tooltip = `Navigate to view (${absolutePath})`;
                     links.push(link);
                 }
             }
@@ -2988,6 +3098,46 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         // Remove the leading ~/ if present
         if (relativePath.startsWith('~/')) {
             relativePath = relativePath.substring(2);
+        }
+        
+        // Find potential MVC project roots
+        const projectRoots = this.findMvcProjectRoots(workspaceFolder.uri.fsPath, controllerUri.fsPath);
+        
+        for (const projectRoot of projectRoots) {
+            // Try the path directly under the project root
+            const fullFilePath = path.join(projectRoot, relativePath);
+            if (fs.existsSync(fullFilePath)) {
+                return fullFilePath;
+            }
+            
+            // Also try with different path separators (handle both / and \)
+            const normalizedPath = relativePath.replace(/\//g, path.sep);
+            const normalizedFullPath = path.join(projectRoot, normalizedPath);
+            if (fs.existsSync(normalizedFullPath)) {
+                return normalizedFullPath;
+            }
+        }
+        
+        return null;
+    }
+
+    private resolveAbsoluteViewPath(controllerUri: vscode.Uri, absolutePath: string): string | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(controllerUri);
+        if (!workspaceFolder) {
+            return null;
+        }
+
+        // Convert absolute path starting with / to file system path
+        // Examples:
+        // /Areas/MyArea/Views/MyController/_MyPartial.cshtml
+        // /Views/Shared/_Layout.cshtml
+        // /Views/Home/Index.cshtml
+        
+        let relativePath = absolutePath;
+        
+        // Remove the leading / if present
+        if (relativePath.startsWith('/')) {
+            relativePath = relativePath.substring(1);
         }
         
         // Find potential MVC project roots

@@ -16,6 +16,10 @@ export const PARTIAL_VIEW_CALL_WITH_MODEL_REGEX = /\bPartialView\s*\(\s*(?!["'])
 export const VIEW_CALL_WITH_FULL_PATH_REGEX = /\b(View|PartialView)\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*\)/g;
 export const VIEW_CALL_WITH_FULL_PATH_AND_PARAMS_REGEX = /\b(View|PartialView)\s*\(\s*["'](~\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
 
+// Regular expressions to match View() and PartialView() calls with absolute paths (starting with /)
+export const VIEW_CALL_WITH_ABSOLUTE_PATH_REGEX = /\b(View|PartialView)\s*\(\s*["'](\/[^"']+\.cshtml?)["']\s*\)/g;
+export const VIEW_CALL_WITH_ABSOLUTE_PATH_AND_PARAMS_REGEX = /\b(View|PartialView)\s*\(\s*["'](\/[^"']+\.cshtml?)["']\s*,\s*[^)]+\)/g;
+
 // Regular expressions to match RedirectToAction() calls
 export const REDIRECT_TO_ACTION_WITH_ACTION_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*\)/g;
 export const REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
@@ -86,3 +90,7 @@ export const COMPONENT_INVOKE_ASYNC_WITH_NAME_AND_PARAMS_REGEX = /@?await\s+Comp
 
 // Regular expressions to match View Component tag helpers
 export const VIEW_COMPONENT_TAG_HELPER_REGEX = /<vc:([a-zA-Z-]+)[^>]*>/g;
+
+// Regular expressions for ViewComponent() calls in controllers
+export const VIEW_COMPONENT_CALL_REGEX = /\bViewComponent\s*\(\s*["']([^"']+)["']\s*\)/g;
+export const VIEW_COMPONENT_CALL_WITH_PARAMS_REGEX = /\bViewComponent\s*\(\s*["']([^"']+)["']\s*,\s*[^)]+\)/g;
