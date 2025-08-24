@@ -1,6 +1,6 @@
 # ASP.NET MVC Navigator
 
-A Visual Studio Code extension that recreates the intelligent navigation features found in JetBrains Rider and ReSharper for ASP.NET MVC projects.
+A Visual Studio Code extension that provides intelligent navigation between ASP.NET MVC controllers, views, actions, and view components, similar to the functionality found in JetBrains Rider and ReSharper.
 
 ## Demo
 
