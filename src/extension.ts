@@ -10,40 +10,24 @@ import { MvcDocumentHighlightProvider } from './MvcDocumentHighlightProvider';
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
     console.log('ASP.NET MVC Navigator extension is now active!');
+    const documents = [
+        { language: 'csharp' },
+        { language: 'razor' }, 
+        { language: 'aspnetcorerazor' }
+    ];
 
     // Register the document link provider for C# files
     const linkProvider = new MvcDocumentLinkProvider();
-    const disposableLinkProvider = vscode.languages.registerDocumentLinkProvider(
-        [
-            { language: 'csharp' },
-            { language: 'razor' }, 
-            { language: 'aspnetcorerazor' }
-        ],
-        linkProvider
-    );
+    const disposableLinkProvider = vscode.languages.registerDocumentLinkProvider(documents, linkProvider);
 
     // Register definition provider to prevent default Go to Definition behavior on our links
     const definitionProvider = new MvcDefinitionProvider(linkProvider);
-    const disposableDefinitionProvider = vscode.languages.registerDefinitionProvider(
-        [
-            { language: 'csharp' },
-            { language: 'razor' }, 
-            { language: 'aspnetcorerazor' }
-        ],
-        definitionProvider
-    );
+    const disposableDefinitionProvider = vscode.languages.registerDefinitionProvider(documents, definitionProvider);
 
     // Register document highlight provider to prevent word highlighting on our links
     const highlightProvider = new MvcDocumentHighlightProvider(linkProvider);
-    const disposableHighlightProvider = vscode.languages.registerDocumentHighlightProvider(
-        [
-            { language: 'csharp' },
-            { language: 'razor' }, 
-            { language: 'aspnetcorerazor' }
-        ],
-        highlightProvider
-    );
-
+    const disposableHighlightProvider = vscode.languages.registerDocumentHighlightProvider(documents, highlightProvider);
+    
     // Register custom command for action navigation with line positioning
     const disposableActionCommand = vscode.commands.registerCommand('vscode-mvcnavigator.navigateToAction', async (...args: any[]) => {
         try {
