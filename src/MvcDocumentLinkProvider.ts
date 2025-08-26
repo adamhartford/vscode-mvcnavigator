@@ -61,9 +61,9 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     }
     
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
-        const documentKey = `${document.uri.toString()}-${document.version}`;
-        
         const links: vscode.DocumentLink[] = [];
+
+        this.debugLog(`Processing file: ${document.fileName}, languageId: ${document.languageId}`);
         
         // Process C# files for controller-based navigation
         if (document.languageId === 'csharp') {
@@ -75,14 +75,11 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             document.languageId === 'aspnetcorerazor' ||
             document.fileName.endsWith('.cshtml') || document.fileName.endsWith('.razor')) {
             
-            this.debugLog(`Processing file: ${document.fileName}, languageId: ${document.languageId}`);
-            
             this.processRazorNavigations(document, links);
             this.processTagHelperNavigations(document, links);
-            
-            this.debugLog(`Found ${links.length} links in ${document.fileName}`);
         }
 
+        this.debugLog(`Found ${links.length} links in ${document.fileName}`);
         return links;
     }
 
