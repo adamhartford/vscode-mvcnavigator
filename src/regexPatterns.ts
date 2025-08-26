@@ -23,12 +23,12 @@ export const VIEW_CALL_WITH_ABSOLUTE_PATH_AND_PARAMS_REGEX = /\b(View|PartialVie
 // Regular expressions to match RedirectToAction() calls
 export const REDIRECT_TO_ACTION_WITH_ACTION_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*\)/g;
 export const REDIRECT_TO_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
-export const REDIRECT_TO_ACTION_WITH_PARAMS_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*(?:new\s*\{(?![^}]*area\s*=)[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
-export const REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*(?:(?!new\s*\{[^}]*area\s*=)new\s*\{[^}]+\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
-export const REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
+export const REDIRECT_TO_ACTION_WITH_PARAMS_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*(?:new\s*\{(?![^}]*[A|a]rea\s*=)[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
+export const REDIRECT_TO_ACTION_ANONYMOUS_OBJECT_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*(?:(?!new\s*\{[^}]*[A|a]rea\s*=)new\s*\{[^}]+\}|[a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
+export const REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*[A|a]rea\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
 
 // Regular expressions to match RedirectToAction() calls with area in route values
-export const REDIRECT_TO_ACTION_WITH_AREA_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*area\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
+export const REDIRECT_TO_ACTION_WITH_AREA_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*[A|a]rea\s*=\s*["']([^"']+)["'][^}]*\}\s*\)/g;
 
 // Regular expressions to match @Url.Action() calls in Razor views
 export const URL_ACTION_WITH_ACTION_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*\)/g;
