@@ -50,55 +50,16 @@ export function activate(context: vscode.ExtensionContext) {
             let filePath: string;
             let lineNumber: number | undefined;
             
-            // Handle different argument formats
-            if (args.length >= 1) {
-                const arg = args[0];
-                console.log(`[MVC Navigator] navigateToAction called with arg: ${arg}, type: ${typeof arg}`);
-                if (typeof arg === 'string') {
-                    // Try to decode as base64 encoded navigation info first
-                    try {
-                        const decodedNavInfo = JSON.parse(Buffer.from(arg, 'base64').toString());
-                        if (decodedNavInfo.type === 'direct' && decodedNavInfo.path) {
-                            console.log(`[MVC Navigator] Decoded embedded navigation info:`, decodedNavInfo);
-                            filePath = decodedNavInfo.path;
-                            lineNumber = decodedNavInfo.lineNumber;
-                        } else {
-                            throw new Error('Invalid navigation info format');
-                        }
-                    } catch (decodeError) {
-                        console.log(`[MVC Navigator] Failed to decode as embedded info, checking legacy formats...`);
-                        
-                        // Check if it's a legacy link ID
-                        if (linkProvider.pendingNavigations.has(arg)) {
-                            const navData = linkProvider.pendingNavigations.get(arg)!;
-                            filePath = navData.path;
-                            lineNumber = navData.lineNumber;
-                            console.log(`[MVC Navigator] Found pending navigation: ${filePath}, line: ${lineNumber}`);
-                            // Clean up the stored navigation
-                            linkProvider.pendingNavigations.delete(arg);
-                        } else {
-                            // Check if this is a stale linkId
-                            if (arg.startsWith('action_') || arg.startsWith('controller_') || arg.startsWith('viewcomponent_')) {
-                                console.log(`[MVC Navigator] Detected stale linkId: ${arg} - showing user-friendly message`);
-                                
-                                // Show a user-friendly message instead of throwing an error
-                                vscode.window.showInformationMessage(
-                                    'Navigation link has expired due to document changes. Please click the link again.',
-                                    'OK'
-                                );
-                                return;
-                            }
-                            
-                            // Direct path (legacy format)
-                            filePath = arg;
-                            lineNumber = args[1];
-                        }
-                    }
-                } else {
-                    throw new Error(`Invalid argument type: ${typeof arg}`);
-                }
+            const arg = args[0];
+            console.log(`[MVC Navigator] navigateToAction called with arg: ${arg}, type: ${typeof arg}`);
+            
+            const decodedNavInfo = JSON.parse(Buffer.from(arg, 'base64').toString());
+            if (decodedNavInfo.type === 'direct' && decodedNavInfo.path) {
+                console.log(`[MVC Navigator] Decoded embedded navigation info:`, decodedNavInfo);
+                filePath = decodedNavInfo.path;
+                lineNumber = decodedNavInfo.lineNumber;
             } else {
-                throw new Error('No arguments provided to navigateToAction command');
+                throw new Error('Invalid navigation info format');
             }
             
             if (!filePath || typeof filePath !== 'string') {
@@ -130,45 +91,9 @@ export function activate(context: vscode.ExtensionContext) {
             // Handle different argument formats
             if (args.length === 1) {
                 const arg = args[0];
-                if (typeof arg === 'string') {
-                    // Try to decode as base64 encoded navigation info first
-                    try {
-                        const decodedNavInfo = JSON.parse(Buffer.from(arg, 'base64').toString());
-                        if (decodedNavInfo.type === 'direct' && decodedNavInfo.path) {
-                            console.log(`[MVC Navigator] Decoded embedded controller navigation info:`, decodedNavInfo);
-                            filePath = decodedNavInfo.path;
-                        } else {
-                            throw new Error('Invalid navigation info format');
-                        }
-                    } catch (decodeError) {
-                        console.log(`[MVC Navigator] Failed to decode as embedded info, checking legacy formats...`);
-                        
-                        // Check if it's a legacy link ID
-                        if (linkProvider.pendingNavigations.has(arg)) {
-                            const navData = linkProvider.pendingNavigations.get(arg)!;
-                            filePath = navData.path;
-                            // Clean up the stored navigation
-                            linkProvider.pendingNavigations.delete(arg);
-                        } else {
-                            // Check if this is a stale linkId
-                            if (arg.startsWith('action_') || arg.startsWith('controller_') || arg.startsWith('viewcomponent_')) {
-                                console.log(`[MVC Navigator] Detected stale controller linkId: ${arg} - showing user-friendly message`);
-                                
-                                // Show a user-friendly message instead of throwing an error
-                                vscode.window.showInformationMessage(
-                                    'Navigation link has expired due to document changes. Please click the link again.',
-                                    'OK'
-                                );
-                                return;
-                            }
-                            
-                            // Direct path
-                            filePath = arg;
-                        }
-                    }
-                } else {
-                    throw new Error(`Invalid argument type: ${typeof arg}`);
-                }
+                const decodedNavInfo = JSON.parse(Buffer.from(arg, 'base64').toString());
+                console.log(`[MVC Navigator] Decoded embedded controller navigation info:`, decodedNavInfo);
+                filePath = decodedNavInfo.path;
             } else if (args.length > 1) {
                 filePath = args[0];
             } else {
@@ -213,53 +138,11 @@ export function activate(context: vscode.ExtensionContext) {
             let filePath: string;
             let componentName: string | undefined;
             
-            // Handle different argument formats
-            if (args.length >= 1) {
-                const arg = args[0];
-                if (typeof arg === 'string') {
-                    // Try to decode as base64 encoded navigation info first
-                    try {
-                        const decodedNavInfo = JSON.parse(Buffer.from(arg, 'base64').toString());
-                        if (decodedNavInfo.type === 'direct' && decodedNavInfo.path) {
-                            console.log(`[MVC Navigator] Decoded embedded view component navigation info:`, decodedNavInfo);
-                            filePath = decodedNavInfo.path;
-                            componentName = decodedNavInfo.componentName;
-                        } else {
-                            throw new Error('Invalid navigation info format');
-                        }
-                    } catch (decodeError) {
-                        console.log(`[MVC Navigator] Failed to decode as embedded info, checking legacy formats...`);
-                        
-                        // Check if it's a legacy link ID
-                        if (linkProvider.pendingNavigations.has(arg)) {
-                            const navData = linkProvider.pendingNavigations.get(arg)!;
-                            filePath = navData.path;
-                            componentName = navData.componentName;
-                            // Clean up the stored navigation
-                            linkProvider.pendingNavigations.delete(arg);
-                        } else {
-                            // Check if this is a stale linkId
-                            if (arg.startsWith('action_') || arg.startsWith('controller_') || arg.startsWith('viewcomponent_')) {
-                                console.log(`[MVC Navigator] Detected stale view component linkId: ${arg} - showing user-friendly message`);
-                                
-                                // Show a user-friendly message instead of throwing an error
-                                vscode.window.showInformationMessage(
-                                    'Navigation link has expired due to document changes. Please click the link again.',
-                                    'OK'
-                                );
-                                return;
-                            }
-                            
-                            // Direct path (legacy format)
-                            filePath = arg;
-                        }
-                    }
-                } else {
-                    throw new Error(`Invalid argument type: ${typeof arg}`);
-                }
-            } else {
-                throw new Error('No arguments provided to navigateToViewComponent command');
-            }
+            const arg = args[0];
+            const decodedNavInfo = JSON.parse(Buffer.from(arg, 'base64').toString());
+            console.log(`[MVC Navigator] Decoded embedded view component navigation info:`, decodedNavInfo);
+            filePath = decodedNavInfo.path;
+            componentName = decodedNavInfo.componentName;
             
             if (!filePath || typeof filePath !== 'string') {
                 throw new Error(`Invalid filePath parameter: ${filePath} (type: ${typeof filePath})`);
