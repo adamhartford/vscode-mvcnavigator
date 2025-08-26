@@ -1,9 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as RegexPatterns from './regexPatterns';
 import { MvcDefinitionProvider } from './MvcDefinitionProvider';
 import { MvcDocumentLinkProvider } from './MvcDocumentLinkProvider';
 import { MvcDocumentHighlightProvider } from './MvcDocumentHighlightProvider';
@@ -17,18 +14,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Register the document link provider for C# files
     const linkProvider = new MvcDocumentLinkProvider();
     const disposableLinkProvider = vscode.languages.registerDocumentLinkProvider(
-        { language: 'csharp' },
-        linkProvider
-    );
-
-    // Register for Razor files as well
-    const disposableRazorLinkProvider = vscode.languages.registerDocumentLinkProvider(
         [
-            { language: 'html' }, 
+            { language: 'csharp' },
             { language: 'razor' }, 
-            { language: 'aspnetcorerazor' },
-            { pattern: '**/*.cshtml' },
-            { pattern: '**/*.razor' }
+            { language: 'aspnetcorerazor' }
         ],
         linkProvider
     );
@@ -36,18 +25,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Register definition provider to prevent default Go to Definition behavior on our links
     const definitionProvider = new MvcDefinitionProvider(linkProvider);
     const disposableDefinitionProvider = vscode.languages.registerDefinitionProvider(
-        { language: 'csharp' },
-        definitionProvider
-    );
-
-    // Register definition provider for Razor files as well
-    const disposableRazorDefinitionProvider = vscode.languages.registerDefinitionProvider(
         [
-            { language: 'html' }, 
+            { language: 'csharp' },
             { language: 'razor' }, 
-            { language: 'aspnetcorerazor' },
-            { pattern: '**/*.cshtml' },
-            { pattern: '**/*.razor' }
+            { language: 'aspnetcorerazor' }
         ],
         definitionProvider
     );
@@ -56,11 +37,9 @@ export function activate(context: vscode.ExtensionContext) {
     const highlightProvider = new MvcDocumentHighlightProvider(linkProvider);
     const disposableHighlightProvider = vscode.languages.registerDocumentHighlightProvider(
         [
-            { language: 'html' }, 
+            { language: 'csharp' },
             { language: 'razor' }, 
-            { language: 'aspnetcorerazor' },
-            { pattern: '**/*.cshtml' },
-            { pattern: '**/*.razor' }
+            { language: 'aspnetcorerazor' }
         ],
         highlightProvider
     );
@@ -593,9 +572,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         disposableLinkProvider, 
-        disposableRazorLinkProvider, 
         disposableDefinitionProvider,
-        disposableRazorDefinitionProvider,
         disposableHighlightProvider,
         disposableCommand, 
         disposableActionCommand, 
@@ -609,5 +586,3 @@ export function deactivate() {
     // The context.subscriptions will automatically dispose of registered providers
     // including the linkProvider which will call its dispose() method
 }
-
-
