@@ -600,8 +600,7 @@ export function activate(context: vscode.ExtensionContext) {
         disposableCommand, 
         disposableActionCommand, 
         disposableControllerCommand,
-        disposableViewComponentCommand,
-        linkProvider // Add the link provider for proper disposal
+        disposableViewComponentCommand
     );
 }
 

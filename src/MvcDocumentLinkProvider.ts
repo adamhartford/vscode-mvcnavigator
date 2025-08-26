@@ -3,10 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as RegexPatterns from './regexPatterns';
 
-export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vscode.Disposable {
+export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number; componentName?: string }>();
-    private debounceTimers = new Map<string, NodeJS.Timeout>();
-    private fileWatcher: vscode.FileSystemWatcher | undefined;
     
     private getDebugLoggingEnabled(): boolean {
         const config = vscode.workspace.getConfiguration('mvcNavigator');
@@ -65,12 +63,6 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
         const documentKey = `${document.uri.toString()}-${document.version}`;
         
-        // Debounce rapid document changes
-        const debounceKey = document.uri.toString();
-        if (this.debounceTimers.has(debounceKey)) {
-            clearTimeout(this.debounceTimers.get(debounceKey)!);
-        }
-        
         const links: vscode.DocumentLink[] = [];
         
         // Process C# files for controller-based navigation
@@ -89,16 +81,6 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
             this.processTagHelperNavigations(document, links);
             
             this.debugLog(`Found ${links.length} links in ${document.fileName}`);
-        }
-        
-        // Clean up old debounce timers (keep only last 20)
-        if (this.debounceTimers.size > 20) {
-            const entries = Array.from(this.debounceTimers.entries());
-            const toDelete = entries.slice(0, entries.length - 20);
-            toDelete.forEach(([key]) => {
-                clearTimeout(this.debounceTimers.get(key)!);
-                this.debounceTimers.delete(key);
-            });
         }
 
         return links;
@@ -3709,13 +3691,5 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider, vsc
         }
         
         this.debugLog(`Partial tag helper processing complete.`);
-    }
-
-    dispose(): void {
-        // Clear any pending debounce timers
-        for (const timer of this.debounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this.debounceTimers.clear();
     }
 }
