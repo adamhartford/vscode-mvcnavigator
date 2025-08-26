@@ -8,17 +8,6 @@ export class MvcDefinitionProvider implements vscode.DefinitionProvider {
         this.linkProvider = linkProvider;
     }
 
-    private getDebugLoggingEnabled(): boolean {
-        const config = vscode.workspace.getConfiguration('mvcNavigator');
-        return config.get<boolean>('enableDebugLogging', false);
-    }
-
-    private debugLog(message: string, ...args: any[]): void {
-        if (this.getDebugLoggingEnabled()) {
-            console.log(`[MvcDefinitionProvider] ${message}`, ...args);
-        }
-    }
-
     provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.Definition | vscode.LocationLink[]> {
         // Check if the position is within any of our document links
         const links = this.linkProvider.provideDocumentLinks(document);

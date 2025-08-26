@@ -6,77 +6,17 @@ import * as RegexPatterns from './regexPatterns';
 export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     public pendingNavigations = new Map<string, { type: string; path: string; lineNumber?: number; componentName?: string }>();
     
-    private getDebugLoggingEnabled(): boolean {
-        const config = vscode.workspace.getConfiguration('mvcNavigator');
-        return config.get<boolean>('enableDebugLogging', false);
-    }
-    
-    private debugLog(message: string): void {
-        if (this.getDebugLoggingEnabled()) {
-            console.log(`[MVC Navigator] ${message}`);
-        }
-    }
-    
-    // Helper method to create action command URIs with embedded navigation info
-    private createActionCommandUri(filePath: string, lineNumber?: number): vscode.Uri {
-        // Instead of using temporary linkIds, encode the navigation info directly in the URI
-        const navInfo = {
-            type: 'direct',
-            path: filePath,
-            lineNumber: lineNumber
-        };
-        
-        // Base64 encode the navigation info to make it URL-safe
-        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
-        const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
-        this.debugLog(`Created action command URI with embedded info: ${commandUri.toString()}`);
-        return commandUri;
-    }
-    
-    // Helper method to create controller command URIs with embedded navigation info
-    private createControllerCommandUri(filePath: string): vscode.Uri {
-        // Instead of using temporary linkIds, encode the navigation info directly in the URI
-        const navInfo = {
-            type: 'direct',
-            path: filePath
-        };
-        
-        // Base64 encode the navigation info to make it URL-safe
-        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
-        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
-    }
-
-    // Helper method to create view component command URIs with embedded navigation info
-    private createViewComponentCommandUri(filePath: string, componentName?: string): vscode.Uri {
-        // Instead of using temporary linkIds, encode the navigation info directly in the URI
-        const navInfo = {
-            type: 'direct',
-            path: filePath,
-            componentName: componentName
-        };
-        
-        // Base64 encode the navigation info to make it URL-safe
-        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
-        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToViewComponent?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
-    }
-    
     provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
         const links: vscode.DocumentLink[] = [];
 
         this.debugLog(`Processing file: ${document.fileName}, languageId: ${document.languageId}`);
         
-        // Process C# files for controller-based navigation
         if (document.languageId === 'csharp') {
             this.processCSharpNavigations(document, links);
         }
         
-        // Process Razor/HTML files for @Url.Action navigation
-        if (document.languageId === 'razor' || document.languageId === 'html' || 
-            document.languageId === 'aspnetcorerazor' ||
-            document.fileName.endsWith('.cshtml') || document.fileName.endsWith('.razor')) {
-            
+        if (document.languageId === 'razor' || document.languageId === 'aspnetcorerazor') {
             this.processRazorNavigations(document, links);
-            this.processTagHelperNavigations(document, links);
         }
 
         this.debugLog(`Found ${links.length} links in ${document.fileName}`);
@@ -232,6 +172,8 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle View Component calls
         this.processViewComponentInvokeAsync(document, text, links);
         this.processViewComponentInvokeAsyncWithParams(document, text, links);
+
+        this.processTagHelperNavigations(document, links);
     }
 
     private processTagHelperNavigations(document: vscode.TextDocument, links: vscode.DocumentLink[]): void {
@@ -3688,5 +3630,59 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         }
         
         this.debugLog(`Partial tag helper processing complete.`);
+    }
+
+    private getDebugLoggingEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration('mvcNavigator');
+        return config.get<boolean>('enableDebugLogging', false);
+    }
+    
+    private debugLog(message: string): void {
+        if (this.getDebugLoggingEnabled()) {
+            console.log(`[MVC Navigator] ${message}`);
+        }
+    }
+    
+    // Helper method to create action command URIs with embedded navigation info
+    private createActionCommandUri(filePath: string, lineNumber?: number): vscode.Uri {
+        // Instead of using temporary linkIds, encode the navigation info directly in the URI
+        const navInfo = {
+            type: 'direct',
+            path: filePath,
+            lineNumber: lineNumber
+        };
+        
+        // Base64 encode the navigation info to make it URL-safe
+        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
+        const commandUri = vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToAction?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
+        this.debugLog(`Created action command URI with embedded info: ${commandUri.toString()}`);
+        return commandUri;
+    }
+    
+    // Helper method to create controller command URIs with embedded navigation info
+    private createControllerCommandUri(filePath: string): vscode.Uri {
+        // Instead of using temporary linkIds, encode the navigation info directly in the URI
+        const navInfo = {
+            type: 'direct',
+            path: filePath
+        };
+        
+        // Base64 encode the navigation info to make it URL-safe
+        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
+        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToController?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
+    }
+
+    // Helper method to create view component command URIs with embedded navigation info
+    private createViewComponentCommandUri(filePath: string, componentName?: string): vscode.Uri {
+        // Instead of using temporary linkIds, encode the navigation info directly in the URI
+        const navInfo = {
+            type: 'direct',
+            path: filePath,
+            componentName: componentName
+        };
+        
+        // Base64 encode the navigation info to make it URL-safe
+        const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
+        return vscode.Uri.parse(`command:vscode-mvcnavigator.navigateToViewComponent?${encodeURIComponent(JSON.stringify([encodedNavInfo]))}`);
     }
 }
