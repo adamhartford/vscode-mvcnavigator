@@ -1,6 +1,8 @@
 .vscode/**
 .vscode-test/**
 src/**
+src/test
+out/test
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md
@@ -9,12 +11,7 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
-
-# Test files (keep in repo but exclude from package)
-regex-test.js
-test-*.js
-
-# Sample project (keep in repo but exclude from package)
+test-scripts/**
 sample/**
 
 # Generated package
