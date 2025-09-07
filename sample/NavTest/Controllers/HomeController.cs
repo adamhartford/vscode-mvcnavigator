@@ -33,6 +33,11 @@ public class HomeController : Controller
         return RedirectToAction("Index");
     }
 
+    public IActionResult MyHomeAction()
+    {
+        return RedirectToAction("Index");
+    }
+
     [HttpPost, ValidateAntiForgeryToken]
     public IActionResult Index(IFormCollection formCollection)
     {

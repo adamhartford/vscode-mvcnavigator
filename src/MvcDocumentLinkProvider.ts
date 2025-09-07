@@ -571,8 +571,23 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             }
             
             // Create link for controller name
-            const controllerStartPos = document.positionAt(match.index + match[0].lastIndexOf(match[2]) - 1);
-            const controllerEndPos = document.positionAt(match.index + match[0].lastIndexOf(match[2]) + match[2].length + 1);
+            // Find controller name position more precisely - look for it after the action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            
+            // Find the action name position first
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            // Then find the controller name after the action name
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
+            
+            if (controllerStartInMatch === -1) {
+                return; // Skip if we can't find the controller name in the expected position
+            }
+            
+            const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+            const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
             const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
             
             const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
@@ -616,8 +631,23 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             }
             
             // Create link for controller name
-            const controllerStartPos = document.positionAt(match.index + match[0].lastIndexOf(match[2]) - 1);
-            const controllerEndPos = document.positionAt(match.index + match[0].lastIndexOf(match[2]) + match[2].length + 1);
+            // Find controller name position more precisely - look for it after the action name
+            const fullMatch = match[0];
+            const quoteChar = fullMatch.includes('"') ? '"' : "'";
+            const actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
+            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
+            
+            // Find the action name position first
+            const actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            // Then find the controller name after the action name
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
+            
+            if (controllerStartInMatch === -1) {
+                return; // Skip if we can't find the controller name in the expected position
+            }
+            
+            const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
+            const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
             const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
             
             const controllerInfo = this.findControllerWithLineInfo(document.uri, controllerName);
@@ -716,7 +746,8 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             // Also handle controller name navigation
             quoteChar = fullMatch.includes('"') ? '"' : "'";
             const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
-            const controllerStartInMatch = fullMatch.lastIndexOf(controllerNameWithQuotes);
+            // Find controller name after action name but before area name
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
             
             if (controllerStartInMatch !== -1) {
                 const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
@@ -836,7 +867,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             }
             // Also underline the controller name
             const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
-            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes);
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
             if (controllerStartInMatch !== -1) {
                 const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
@@ -891,7 +922,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             }
             // Also underline the controller name
             const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
-            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes);
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
             if (controllerStartInMatch !== -1) {
                 const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
@@ -1010,7 +1041,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             
             // Also underline the controller name
             const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
-            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes);
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
             if (controllerStartInMatch !== -1) {
                 const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
@@ -1058,7 +1089,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             
             // Also underline the controller name
             const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
-            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes);
+            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
             if (controllerStartInMatch !== -1) {
                 const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
                 const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
@@ -3646,11 +3677,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // Helper method to create action command URIs with embedded navigation info
     private createActionCommandUri(filePath: string, lineNumber?: number): vscode.Uri {
         // Instead of using temporary linkIds, encode the navigation info directly in the URI
-        const navInfo = {
-            type: 'direct',
-            path: filePath,
-            lineNumber: lineNumber
-        };
+        const navInfo = {path: filePath, lineNumber: lineNumber};
         
         // Base64 encode the navigation info to make it URL-safe
         const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
@@ -3662,10 +3689,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
     // Helper method to create controller command URIs with embedded navigation info
     private createControllerCommandUri(filePath: string): vscode.Uri {
         // Instead of using temporary linkIds, encode the navigation info directly in the URI
-        const navInfo = {
-            type: 'direct',
-            path: filePath
-        };
+        const navInfo = {path: filePath};
         
         // Base64 encode the navigation info to make it URL-safe
         const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');
@@ -3674,12 +3698,7 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     // Helper method to create view component command URIs with embedded navigation info
     private createViewComponentCommandUri(filePath: string, componentName?: string): vscode.Uri {
-        // Instead of using temporary linkIds, encode the navigation info directly in the URI
-        const navInfo = {
-            type: 'direct',
-            path: filePath,
-            componentName: componentName
-        };
+        const navInfo = {path: filePath,componentName: componentName};
         
         // Base64 encode the navigation info to make it URL-safe
         const encodedNavInfo = Buffer.from(JSON.stringify(navInfo)).toString('base64');

@@ -38,7 +38,7 @@ export function activate(context: vscode.ExtensionContext) {
             console.log(`[MVC Navigator] navigateToAction called with arg: ${arg}, type: ${typeof arg}`);
             
             const decodedNavInfo = JSON.parse(Buffer.from(arg, 'base64').toString());
-            if (decodedNavInfo.type === 'direct' && decodedNavInfo.path) {
+            if (decodedNavInfo.path) {
                 console.log(`[MVC Navigator] Decoded embedded navigation info:`, decodedNavInfo);
                 filePath = decodedNavInfo.path;
                 lineNumber = decodedNavInfo.lineNumber;
