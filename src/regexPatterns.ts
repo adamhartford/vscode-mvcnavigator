@@ -30,6 +30,10 @@ export const REDIRECT_TO_ACTION_WITH_AREA_TWO_PARAM_REGEX = /\bRedirectToAction\
 // Regular expressions to match RedirectToAction() calls with area in route values
 export const REDIRECT_TO_ACTION_WITH_AREA_REGEX = /\bRedirectToAction\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*[A|a]rea\s*=\s*["']([^"']*)["'][^}]*\}\s*\)/g;
 
+// Regular expressions to match RedirectToRoute() calls
+export const REDIRECT_TO_ROUTE_REGEX = /\bRedirectToRoute\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*\}\s*\)/g;
+export const REDIRECT_TO_ROUTE_WITH_AREA_REGEX = /\bRedirectToRoute\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*[A|a]rea\s*=\s*["']([^"']*)["'][^}]*\}\s*\)/g;
+
 // Regular expressions to match @Url.Action() calls in Razor views
 export const URL_ACTION_WITH_ACTION_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*\)/g;
 export const URL_ACTION_WITH_ACTION_AND_CONTROLLER_REGEX = /@Url\.Action\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;

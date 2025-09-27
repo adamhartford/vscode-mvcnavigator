@@ -24,5 +24,10 @@ public class ProductsController : Controller
         return RedirectToAction("Index", "Home", new { area = "" });
         return RedirectToAction("Index", "Home", new { area = "Admin" });
         return RedirectToRoute("default", new { controller = "Home", action = "Index", HomeId = homeId });
+        
+        // Additional RedirectToRoute test cases with different parameter orders
+        return RedirectToRoute("default", new { action = "Privacy", controller = "Home" });
+        return RedirectToRoute("admin_route", new { controller = "Users", action = "Index", area = "Admin" });
+        return RedirectToRoute("admin_route", new { area = "Admin", action = "Index", controller = "Users" });
     }
 }

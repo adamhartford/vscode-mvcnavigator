@@ -87,6 +87,10 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
         // Handle RedirectToAction("ActionName", routeValues) calls
         this.processRedirectToActionWithAnonymousObject(document, text, links);
 
+        // Handle RedirectToRoute calls
+        this.processRedirectToRoute(document, text, links);
+        this.processRedirectToRouteWithArea(document, text, links);
+
         // Handle C# Url.Action() calls in controller code
         this.processCSharpUrlActionWithAction(document, text, links);
         this.processCSharpUrlActionWithActionAndController(document, text, links);
@@ -799,6 +803,149 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                     const link = new vscode.DocumentLink(range, commandUri);
                     link.tooltip = `Navigate to ${actionName} action method in ${currentController}Controller (Area: ${areaName}, line ${actionPath.lineNumber || '?'})`;
                     links.push(link);
+                }
+            }
+        }
+    }
+
+    private processRedirectToRoute(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.REDIRECT_TO_ROUTE_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.REDIRECT_TO_ROUTE_REGEX.exec(text)) !== null) {
+            const routeName = match[1];
+            const fullMatch = match[0];
+            const matchStartIndex = match.index;
+            
+            // Extract controller and action from the route values object
+            const controllerMatch = fullMatch.match(/controller\s*=\s*["']([^"']+)["']/i);
+            const actionMatch = fullMatch.match(/action\s*=\s*["']([^"']+)["']/i);
+            
+            // Skip if area is present (handled by processRedirectToRouteWithArea)
+            const areaMatch = fullMatch.match(/[A|a]rea\s*=\s*["']([^"']*)["']/);
+            if (areaMatch) {
+                continue;
+            }
+            
+            if (!controllerMatch || !actionMatch) {
+                continue;
+            }
+            
+            const controllerName = controllerMatch[1];
+            const actionName = actionMatch[1];
+            
+            // Find controller name position in the route values object
+            const controllerPattern = new RegExp(`controller\\s*=\\s*["']${controllerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i');
+            const controllerRouteMatch = controllerPattern.exec(fullMatch);
+            if (controllerRouteMatch) {
+                const controllerQuotePattern = /["']([^"']+)["']/;
+                const controllerQuoteMatch = controllerQuotePattern.exec(controllerRouteMatch[0]);
+                if (controllerQuoteMatch) {
+                    const controllerStartInMatch = controllerRouteMatch.index + controllerQuoteMatch.index;
+                    const controllerStartPos = document.positionAt(matchStartIndex + controllerStartInMatch);
+                    const controllerEndPos = document.positionAt(matchStartIndex + controllerStartInMatch + controllerQuoteMatch[0].length);
+                    
+                    const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                    const controllerPath = this.findControllerFile(document.uri, controllerName);
+                    
+                    if (controllerPath) {
+                        const controllerCommandUri = this.createControllerCommandUri(controllerPath);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class`;
+                        links.push(controllerLink);
+                    }
+                }
+            }
+            
+            // Find action name position in the route values object
+            const actionPattern = new RegExp(`action\\s*=\\s*["']${actionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i');
+            const actionRouteMatch = actionPattern.exec(fullMatch);
+            if (actionRouteMatch) {
+                const actionQuotePattern = /["']([^"']+)["']/;
+                const actionQuoteMatch = actionQuotePattern.exec(actionRouteMatch[0]);
+                if (actionQuoteMatch) {
+                    const actionStartInMatch = actionRouteMatch.index + actionQuoteMatch.index;
+                    const actionStartPos = document.positionAt(matchStartIndex + actionStartInMatch);
+                    const actionEndPos = document.positionAt(matchStartIndex + actionStartInMatch + actionQuoteMatch[0].length);
+                    
+                    const actionRange = new vscode.Range(actionStartPos, actionEndPos);
+                    const actionPath = this.findActionMethodInController(document.uri, actionName, controllerName);
+                    
+                    if (actionPath) {
+                        const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                        const link = new vscode.DocumentLink(actionRange, commandUri);
+                        link.tooltip = `Navigate to ${actionName} action method in ${controllerName}Controller (line ${actionPath.lineNumber || '?'})`;
+                        links.push(link);
+                    }
+                }
+            }
+        }
+    }
+
+    private processRedirectToRouteWithArea(document: vscode.TextDocument, text: string, links: vscode.DocumentLink[]): void {
+        let match;
+        RegexPatterns.REDIRECT_TO_ROUTE_WITH_AREA_REGEX.lastIndex = 0;
+
+        while ((match = RegexPatterns.REDIRECT_TO_ROUTE_WITH_AREA_REGEX.exec(text)) !== null) {
+            const routeName = match[1];
+            const areaName = match[2];
+            const fullMatch = match[0];
+            const matchStartIndex = match.index;
+            
+            // Extract controller and action from the route values object
+            const controllerMatch = fullMatch.match(/controller\s*=\s*["']([^"']+)["']/i);
+            const actionMatch = fullMatch.match(/action\s*=\s*["']([^"']+)["']/i);
+            
+            if (!controllerMatch || !actionMatch) {
+                continue;
+            }
+            
+            const controllerName = controllerMatch[1];
+            const actionName = actionMatch[1];
+            
+            // Find controller name position in the route values object
+            const controllerPattern = new RegExp(`controller\\s*=\\s*["']${controllerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i');
+            const controllerRouteMatch = controllerPattern.exec(fullMatch);
+            if (controllerRouteMatch) {
+                const controllerQuotePattern = /["']([^"']+)["']/;
+                const controllerQuoteMatch = controllerQuotePattern.exec(controllerRouteMatch[0]);
+                if (controllerQuoteMatch) {
+                    const controllerStartInMatch = controllerRouteMatch.index + controllerQuoteMatch.index;
+                    const controllerStartPos = document.positionAt(matchStartIndex + controllerStartInMatch);
+                    const controllerEndPos = document.positionAt(matchStartIndex + controllerStartInMatch + controllerQuoteMatch[0].length);
+                    
+                    const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
+                    const controllerPath = this.findControllerFileInArea(document.uri, controllerName, areaName);
+                    
+                    if (controllerPath) {
+                        const controllerCommandUri = this.createControllerCommandUri(controllerPath);
+                        const controllerLink = new vscode.DocumentLink(controllerRange, controllerCommandUri);
+                        controllerLink.tooltip = `Navigate to ${controllerName}Controller class (Area: ${areaName})`;
+                        links.push(controllerLink);
+                    }
+                }
+            }
+            
+            // Find action name position in the route values object
+            const actionPattern = new RegExp(`action\\s*=\\s*["']${actionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i');
+            const actionRouteMatch = actionPattern.exec(fullMatch);
+            if (actionRouteMatch) {
+                const actionQuotePattern = /["']([^"']+)["']/;
+                const actionQuoteMatch = actionQuotePattern.exec(actionRouteMatch[0]);
+                if (actionQuoteMatch) {
+                    const actionStartInMatch = actionRouteMatch.index + actionQuoteMatch.index;
+                    const actionStartPos = document.positionAt(matchStartIndex + actionStartInMatch);
+                    const actionEndPos = document.positionAt(matchStartIndex + actionStartInMatch + actionQuoteMatch[0].length);
+                    
+                    const actionRange = new vscode.Range(actionStartPos, actionEndPos);
+                    const actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+                    
+                    if (actionPath) {
+                        const commandUri = this.createActionCommandUri(actionPath.filePath, actionPath.lineNumber);
+                        const link = new vscode.DocumentLink(actionRange, commandUri);
+                        link.tooltip = `Navigate to ${actionName} action method in ${controllerName}Controller (Area: ${areaName}, line ${actionPath.lineNumber || '?'})`;
+                        links.push(link);
+                    }
                 }
             }
         }

@@ -434,7 +434,88 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        vscode.window.showWarningMessage('No View(), PartialView(), or RedirectToAction() call found on current line.');
+        // Look for RedirectToRoute() call with area in route values first (most specific)
+        const redirectToRouteWithAreaMatch = lineText.match(/\bRedirectToRoute\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*[A|a]rea\s*=\s*["']([^"']*)["'][^}]*\}\s*\)/);
+        if (redirectToRouteWithAreaMatch) {
+            const routeName = redirectToRouteWithAreaMatch[1];
+            const areaName = redirectToRouteWithAreaMatch[2];
+            
+            // Extract controller and action from the route values object
+            const controllerMatch = redirectToRouteWithAreaMatch[0].match(/controller\s*=\s*["']([^"']+)["']/i);
+            const actionMatch = redirectToRouteWithAreaMatch[0].match(/action\s*=\s*["']([^"']+)["']/i);
+            
+            if (controllerMatch && actionMatch) {
+                const controllerName = controllerMatch[1];
+                const actionName = actionMatch[1];
+                
+                const linkProvider = new MvcDocumentLinkProvider();
+                const actionPath = (linkProvider as any).findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
+                
+                if (actionPath) {
+                    const actionUri = vscode.Uri.file(actionPath.filePath);
+                    const documentToOpen = await vscode.workspace.openTextDocument(actionUri);
+                    if (actionPath.lineNumber) {
+                        const position = new vscode.Position(actionPath.lineNumber - 1, 0);
+                        const range = new vscode.Range(position, position);
+                        await vscode.window.showTextDocument(documentToOpen, {
+                            selection: range
+                        });
+                    } else {
+                        await vscode.window.showTextDocument(documentToOpen);
+                    }
+                } else {
+                    vscode.window.showWarningMessage(`Could not find action method: ${actionName} in ${controllerName}Controller (Area: ${areaName})`);
+                }
+            } else {
+                vscode.window.showWarningMessage('Could not parse controller and action from RedirectToRoute call');
+            }
+            return;
+        }
+
+        // Look for RedirectToRoute() call without area
+        const redirectToRouteMatch = lineText.match(/\bRedirectToRoute\s*\(\s*["']([^"']+)["']\s*,\s*new\s*\{[^}]*\}\s*\)/);
+        if (redirectToRouteMatch) {
+            const routeName = redirectToRouteMatch[1];
+            
+            // Extract controller and action from the route values object
+            const controllerMatch = redirectToRouteMatch[0].match(/controller\s*=\s*["']([^"']+)["']/i);
+            const actionMatch = redirectToRouteMatch[0].match(/action\s*=\s*["']([^"']+)["']/i);
+            
+            // Skip if area is present (handled above)
+            const areaMatch = redirectToRouteMatch[0].match(/[A|a]rea\s*=\s*["']([^"']*)["']/);
+            if (areaMatch) {
+                return; // Let the area version handle this
+            }
+            
+            if (controllerMatch && actionMatch) {
+                const controllerName = controllerMatch[1];
+                const actionName = actionMatch[1];
+                
+                const linkProvider = new MvcDocumentLinkProvider();
+                const actionPath = (linkProvider as any).findActionMethodInController(document.uri, actionName, controllerName);
+                
+                if (actionPath) {
+                    const actionUri = vscode.Uri.file(actionPath.filePath);
+                    const documentToOpen = await vscode.workspace.openTextDocument(actionUri);
+                    if (actionPath.lineNumber) {
+                        const position = new vscode.Position(actionPath.lineNumber - 1, 0);
+                        const range = new vscode.Range(position, position);
+                        await vscode.window.showTextDocument(documentToOpen, {
+                            selection: range
+                        });
+                    } else {
+                        await vscode.window.showTextDocument(documentToOpen);
+                    }
+                } else {
+                    vscode.window.showWarningMessage(`Could not find action method: ${actionName} in ${controllerName}Controller`);
+                }
+            } else {
+                vscode.window.showWarningMessage('Could not parse controller and action from RedirectToRoute call');
+            }
+            return;
+        }
+
+        vscode.window.showWarningMessage('No View(), PartialView(), RedirectToAction(), or RedirectToRoute() call found on current line.');
     });
 
     context.subscriptions.push(
