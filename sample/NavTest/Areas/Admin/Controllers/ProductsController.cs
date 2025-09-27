@@ -20,5 +20,9 @@ public class ProductsController : Controller
         return RedirectToAction("Index", "Home", new { HomeId = homeId });
         return RedirectToAction("Index", "Home", new { Foo = "Bar", Baz=1, Area = "Admin" });
         return RedirectToAction("MyHomeAction", "Home", new { HomeId = homeId });
+
+        return RedirectToAction("Index", "Home", new { area = "" });
+        return RedirectToAction("Index", "Home", new { area = "Admin" });
+        return RedirectToRoute("default", new { controller = "Home", action = "Index", HomeId = homeId });
     }
 }

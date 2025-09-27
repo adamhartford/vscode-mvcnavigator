@@ -721,15 +721,16 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
             const controllerName = match[2];
             const areaName = match[3];
             
-            // Find the exact position of the quoted action name
             const fullMatch = match[0];
-            let quoteChar = fullMatch.includes('"') ? '"' : "'";
-            let actionNameWithQuotes = `${quoteChar}${actionName}${quoteChar}`;
-            let actionStartInMatch = fullMatch.indexOf(actionNameWithQuotes);
+            const matchStartIndex = match.index;
             
-            if (actionStartInMatch !== -1) {
-                const startPos = document.positionAt(match.index + actionStartInMatch);
-                const endPos = document.positionAt(match.index + actionStartInMatch + actionNameWithQuotes.length);
+            // Find action name position - look for the first quoted string
+            const actionQuoteRegex = /["']([^"']+)["']/;
+            const actionQuoteMatch = actionQuoteRegex.exec(fullMatch);
+            if (actionQuoteMatch && actionQuoteMatch[1] === actionName) {
+                const actionStartInMatch = actionQuoteMatch.index;
+                const startPos = document.positionAt(matchStartIndex + actionStartInMatch);
+                const endPos = document.positionAt(matchStartIndex + actionStartInMatch + actionQuoteMatch[0].length);
                 
                 const range = new vscode.Range(startPos, endPos);
                 const actionPath = this.findActionMethodInControllerWithArea(document.uri, actionName, controllerName, areaName);
@@ -743,15 +744,13 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
                 }
             }
             
-            // Also handle controller name navigation
-            quoteChar = fullMatch.includes('"') ? '"' : "'";
-            const controllerNameWithQuotes = `${quoteChar}${controllerName}${quoteChar}`;
-            // Find controller name after action name but before area name
-            const controllerStartInMatch = fullMatch.indexOf(controllerNameWithQuotes, actionStartInMatch + actionNameWithQuotes.length);
-            
-            if (controllerStartInMatch !== -1) {
-                const controllerStartPos = document.positionAt(match.index + controllerStartInMatch);
-                const controllerEndPos = document.positionAt(match.index + controllerStartInMatch + controllerNameWithQuotes.length);
+            // Find controller name position - look for the second quoted string
+            const allQuoteMatches = [...fullMatch.matchAll(/["']([^"']+)["']/g)];
+            if (allQuoteMatches.length >= 2 && allQuoteMatches[1][1] === controllerName) {
+                const controllerMatch = allQuoteMatches[1];
+                const controllerStartInMatch = controllerMatch.index!;
+                const controllerStartPos = document.positionAt(matchStartIndex + controllerStartInMatch);
+                const controllerEndPos = document.positionAt(matchStartIndex + controllerStartInMatch + controllerMatch[0].length);
                 
                 const controllerRange = new vscode.Range(controllerStartPos, controllerEndPos);
                 const controllerPath = this.findControllerFileInArea(document.uri, controllerName, areaName);
@@ -3119,6 +3118,11 @@ export class MvcDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     // Find controller in a specific area
     private findControllerFileInArea(currentControllerUri: vscode.Uri, controllerName: string, areaName: string): string | null {
+        // If area name is empty string, look in the root Controllers directory
+        if (areaName === '') {
+            return this.findControllerFile(currentControllerUri, controllerName);
+        }
+
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentControllerUri);
         if (!workspaceFolder) {
             console.log('No workspace folder found');
