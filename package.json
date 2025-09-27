@@ -2,7 +2,7 @@
   "name": "vscode-mvcnavigator",
   "displayName": "ASP.NET MVC Navigator",
   "description": "Navigate between controllers, views, actions, and view components in ASP.NET MVC projects, similar to JetBrains Rider and ReSharper.",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "adamhartford",
   "author": "Adam Hartford",
   "icon": "icon.png",
