@@ -13,6 +13,11 @@ vsc-extension-quickstart.md
 **/.vscode-test.*
 test-scripts/**
 sample/**
+node_modules
+out/
+src/
+webpack.config.js
+esbuild.js
 
 # Generated package
 *.vsix

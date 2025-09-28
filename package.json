@@ -2,7 +2,7 @@
   "name": "vscode-mvcnavigator",
   "displayName": "ASP.NET MVC Navigator",
   "description": "Navigate between controllers, views, actions, and view components in ASP.NET MVC projects, similar to JetBrains Rider and ReSharper.",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "publisher": "adamhartford",
   "author": "Adam Hartford",
   "icon": "icon.png",
@@ -31,7 +31,7 @@
     "rider"
   ],
   "engines": {
-    "vscode": "^1.103.0"
+    "vscode": "^1.99.3"
   },
   "categories": [
     "Other"
@@ -42,7 +42,7 @@
     "onLanguage:aspnetcorerazor",
     "onLanguage:html"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -73,22 +73,28 @@
     "glob": "^10.3.10"
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src",
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "vscode:prepublish": "npm run package",
+    "package": "npm run check-types && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir dist",
+    "pretest": "npm run compile-tests",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.103.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/vscode": "^1.99.3",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
-    "eslint": "^9.32.0",
-    "typescript": "^5.9.2",
     "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.10",
+    "eslint": "^9.32.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.2"
   }
 }
